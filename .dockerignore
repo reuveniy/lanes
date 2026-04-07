@@ -1,0 +1,8 @@
+node_modules
+dist
+data
+storybook-static
+.claude
+.git
+*.log
+*.tsbuildinfo

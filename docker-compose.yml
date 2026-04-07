@@ -1,0 +1,18 @@
+services:
+  starlanes:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID env var}
+      - SSL_CERT=${SSL_CERT:-}
+      - SSL_KEY=${SSL_KEY:-}
+      - SSL_PASSPHRASE=${SSL_PASSPHRASE:-}
+    volumes:
+      - starlanes-data:/app/data
+      - ${SSL_CERT_DIR:-./.empty-certs}:/app/certs:ro
+    restart: unless-stopped
+
+volumes:
+  starlanes-data:

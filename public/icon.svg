@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="64" fill="#0a0a1a"/>
+  <text x="256" y="200" text-anchor="middle" font-family="monospace" font-size="120" font-weight="bold" fill="#fbbf24">★</text>
+  <text x="256" y="340" text-anchor="middle" font-family="monospace" font-size="72" font-weight="bold" fill="#fbbf24" letter-spacing="8">LANES</text>
+  <text x="256" y="400" text-anchor="middle" font-family="monospace" font-size="28" fill="#6b7280">Interstellar Commerce</text>
+</svg>
