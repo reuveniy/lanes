@@ -17,6 +17,7 @@ import { HoldingsPanel } from "./HoldingsPanel";
 import { GameOverScreen } from "./GameOverScreen";
 import { MapSelectScreen } from "./MapSelectScreen";
 import { EndGameVotePanel } from "./EndGameVotePanel";
+import { ExitButton } from "./ExitButton";
 
 interface GameViewProps {
   state?: GameState;
@@ -150,6 +151,7 @@ export const GameView: React.FC<GameViewProps> = ({
         }}
         mapVotes={isMultiplayer ? externalMapVotes : undefined}
         playerId={playerId}
+        onExit={onExit}
       />
     );
   }
@@ -260,17 +262,7 @@ export const GameView: React.FC<GameViewProps> = ({
             );
           })()}
 
-          {onExit && (
-            <button onClick={onExit} title="Exit game"
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1 }}>
-              <svg width={isMobile ? 16 : 18} height={isMobile ? 16 : 18} viewBox="0 0 24 24" fill="none"
-                stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                <polyline points="16 17 21 12 16 7" />
-                <line x1="21" y1="12" x2="9" y2="12" />
-              </svg>
-            </button>
-          )}
+          {onExit && <ExitButton onClick={onExit} />}
 
           {roomCode && (
             <span style={{

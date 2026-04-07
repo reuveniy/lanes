@@ -7,6 +7,7 @@ import { pickBestMove, pickBestBuy } from "../engine/ai";
 import { getAlarmDuration } from "../engine/sound";
 import { useMobile } from "../hooks/useMobile";
 import { GameView } from "./GameView";
+import { ExitButton } from "./ExitButton";
 
 interface DemoModeProps {
   onExit: () => void;
@@ -162,12 +163,7 @@ export const DemoMode: React.FC<DemoModeProps> = ({ onExit }) => {
 
         <div style={{ flex: 1 }} />
 
-        <button
-          onClick={onExit}
-          style={{ ...btnStyle, color: "#ef4444" }}
-        >
-          Exit Demo
-        </button>
+        <ExitButton onClick={onExit} />
       </div>
 
       {/* Game view with top padding for controls */}

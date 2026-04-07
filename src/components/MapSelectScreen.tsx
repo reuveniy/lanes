@@ -7,6 +7,7 @@ import { CashDisplay } from "./CashDisplay";
 import { StepCounter } from "./StepCounter";
 import { HoldingsPanel } from "./HoldingsPanel";
 import { useMobile, useTablet, useLandscape } from "../hooks/useMobile";
+import { ExitButton } from "./ExitButton";
 
 interface MapSelectScreenProps {
   state: GameState;
@@ -16,6 +17,7 @@ interface MapSelectScreenProps {
   mapVotes?: Record<number, boolean | null>;
   /** Local player id (for showing own vote status) */
   playerId?: number | null;
+  onExit?: () => void;
 }
 
 export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
@@ -24,6 +26,7 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
   onRegenerate,
   mapVotes,
   playerId,
+  onExit,
 }) => {
   const isMobile = useMobile();
   const isTablet = useTablet();
@@ -178,20 +181,26 @@ export const MapSelectScreen: React.FC<MapSelectScreenProps> = ({
       <div
         style={{
           marginBottom: isLandscape ? 2 : isMobile ? 6 : 12,
-          textAlign: "center",
-          lineHeight: isLandscape ? "18px" : isMobile ? "20px" : "24px",
+          display: "flex",
+          alignItems: "center",
         }}
       >
-        <span
-          style={{
-            color: "#fbbf24",
-            fontSize: isLandscape ? 10 : isMobile ? 11 : 16,
-            fontWeight: "bold",
-            letterSpacing: isLandscape ? 1 : isMobile ? 1 : 2,
-          }}
-        >
-          {isMobile || isLandscape ? "L A N E S" : "T H E \u00a0 S T A R \u00a0 L A N E S \u00a0 G A M E"}
-        </span>
+        <div style={{ flex: "0 0 auto" }} />
+        <div style={{ flex: 1, textAlign: "center" }}>
+          <span
+            style={{
+              color: "#fbbf24",
+              fontSize: isLandscape ? 10 : isMobile ? 11 : 16,
+              fontWeight: "bold",
+              letterSpacing: isLandscape ? 1 : isMobile ? 1 : 2,
+            }}
+          >
+            {isMobile || isLandscape ? "L A N E S" : "T H E \u00a0 S T A R \u00a0 L A N E S \u00a0 G A M E"}
+          </span>
+        </div>
+        <div style={{ flex: "0 0 auto" }}>
+          {onExit && <ExitButton onClick={onExit} />}
+        </div>
       </div>
 
       {/* Layout matches gameplay */}

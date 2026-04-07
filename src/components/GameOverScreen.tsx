@@ -1,6 +1,7 @@
 import React from "react";
 import type { GameState } from "../types/game";
 import { useMobile } from "../hooks/useMobile";
+import { ExitButton } from "./ExitButton";
 
 interface GameOverScreenProps {
   state: GameState;
@@ -145,23 +146,9 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
       </button>
 
       {onExit && (
-        <button
-          onClick={onExit}
-          style={{
-            fontFamily: "'Courier New', monospace",
-            fontSize: m ? 12 : 14,
-            background: "transparent",
-            color: "#6b7280",
-            border: "1px solid #374151",
-            borderRadius: 4,
-            padding: m ? "6px 20px" : "8px 28px",
-            cursor: "pointer",
-            letterSpacing: 1,
-            marginTop: 8,
-          }}
-        >
-          EXIT
-        </button>
+        <div style={{ marginTop: 8 }}>
+          <ExitButton onClick={onExit} />
+        </div>
       )}
 
       <style>{`@keyframes blink { 50% { opacity: 0.5; } }`}</style>

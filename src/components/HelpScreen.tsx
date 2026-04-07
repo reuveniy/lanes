@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useMobile } from "../hooks/useMobile";
+import { ExitButton } from "./ExitButton";
 
 type Section =
   | "overview"
@@ -672,24 +673,11 @@ export const HelpScreen: React.FC<HelpScreenProps> = ({ onClose }) => {
             padding: 8,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
-            <button
-              onClick={onClose}
-              style={{
-                fontFamily: "'Courier New', monospace",
-                fontSize: 11,
-                background: "transparent",
-                color: "#6b7280",
-                border: "none",
-                cursor: "pointer",
-                padding: "2px 8px",
-              }}
-            >
-              ← Back
-            </button>
-            <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: "bold", letterSpacing: 1, marginLeft: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: "bold", letterSpacing: 1 }}>
               GAME GUIDE
             </span>
+            <ExitButton onClick={onClose} />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
             {SECTIONS.map((s) => (
@@ -726,14 +714,16 @@ export const HelpScreen: React.FC<HelpScreenProps> = ({ onClose }) => {
         >
           <div
             style={{
-              color: "#fbbf24",
-              fontSize: 12,
-              fontWeight: "bold",
-              padding: "0 16px 12px",
-              letterSpacing: 1,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "0 12px 12px 16px",
             }}
           >
-            GAME GUIDE
+            <span style={{ color: "#fbbf24", fontSize: 12, fontWeight: "bold", letterSpacing: 1 }}>
+              GAME GUIDE
+            </span>
+            <ExitButton onClick={onClose} />
           </div>
           {SECTIONS.map((s) => (
             <button
@@ -754,22 +744,6 @@ export const HelpScreen: React.FC<HelpScreenProps> = ({ onClose }) => {
               {s.title}
             </button>
           ))}
-          <div style={{ flex: 1 }} />
-          <button
-            onClick={onClose}
-            style={{
-              fontFamily: "'Courier New', monospace",
-              fontSize: 12,
-              background: "transparent",
-              color: "#6b7280",
-              border: "none",
-              padding: "8px 16px",
-              textAlign: "left",
-              cursor: "pointer",
-            }}
-          >
-            ← Back to Game
-          </button>
         </div>
       )}
 
