@@ -661,83 +661,36 @@ export const HelpScreen: React.FC<HelpScreenProps> = ({ onClose }) => {
         color: "#e5e7eb",
         minHeight: "100vh",
         display: "flex",
-        flexDirection: isMobile ? "column" : "row",
+        flexDirection: "column",
       }}
     >
-      {/* Navigation */}
-      {isMobile ? (
-        <div
-          style={{
-            background: "#111827",
-            borderBottom: "1px solid #374151",
-            padding: 8,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: "bold", letterSpacing: 1 }}>
-              GAME GUIDE
-            </span>
-            <ExitButton onClick={onClose} />
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-            {SECTIONS.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setActive(s.id)}
-                style={{
-                  fontFamily: "'Courier New', monospace",
-                  fontSize: 10,
-                  background: active === s.id ? "#374151" : "#1f2937",
-                  color: active === s.id ? "#fbbf24" : "#6b7280",
-                  border: active === s.id ? "1px solid #fbbf24" : "1px solid #374151",
-                  borderRadius: 3,
-                  padding: "3px 8px",
-                  cursor: "pointer",
-                }}
-              >
-                {s.title}
-              </button>
-            ))}
-          </div>
+      {/* Top bar: title + horizontal menu + exit */}
+      <div
+        style={{
+          background: "#111827",
+          borderBottom: "1px solid #374151",
+          padding: isMobile ? "8px 8px 6px" : "12px 16px 8px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isMobile ? 6 : 8 }}>
+          <span style={{ color: "#fbbf24", fontSize: isMobile ? 11 : 14, fontWeight: "bold", letterSpacing: 1 }}>
+            GAME GUIDE
+          </span>
+          <ExitButton onClick={onClose} />
         </div>
-      ) : (
-        <div
-          style={{
-            width: 200,
-            minWidth: 200,
-            background: "#111827",
-            borderRight: "1px solid #374151",
-            padding: "16px 0",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "0 12px 12px 16px",
-            }}
-          >
-            <span style={{ color: "#fbbf24", fontSize: 12, fontWeight: "bold", letterSpacing: 1 }}>
-              GAME GUIDE
-            </span>
-            <ExitButton onClick={onClose} />
-          </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? 4 : 6 }}>
           {SECTIONS.map((s) => (
             <button
               key={s.id}
               onClick={() => setActive(s.id)}
               style={{
                 fontFamily: "'Courier New', monospace",
-                fontSize: 12,
-                background: active === s.id ? "#1f2937" : "transparent",
-                color: active === s.id ? "#fbbf24" : "#9ca3af",
-                border: "none",
-                borderLeft: active === s.id ? "2px solid #fbbf24" : "2px solid transparent",
-                padding: "6px 16px",
-                textAlign: "left",
+                fontSize: isMobile ? 10 : 12,
+                background: active === s.id ? "#374151" : "#1f2937",
+                color: active === s.id ? "#fbbf24" : "#6b7280",
+                border: active === s.id ? "1px solid #fbbf24" : "1px solid #374151",
+                borderRadius: 3,
+                padding: isMobile ? "3px 8px" : "4px 12px",
                 cursor: "pointer",
               }}
             >
@@ -745,14 +698,14 @@ export const HelpScreen: React.FC<HelpScreenProps> = ({ onClose }) => {
             </button>
           ))}
         </div>
-      )}
+      </div>
 
       {/* Content */}
       <div
         style={{
           flex: 1,
           padding: isMobile ? "12px 16px" : "24px 32px",
-          maxWidth: 700,
+          maxWidth: 800,
           overflowY: "auto",
         }}
       >
