@@ -13,7 +13,7 @@ const MESSAGE_COLORS: Record<GameMessage["type"], string> = {
   critical: "#ef4444",
 };
 
-const MAX_VISIBLE = 5;
+const MAX_VISIBLE = 12;
 
 export const MessageArea: React.FC<MessageAreaProps> = ({ messages }) => {
   const isMobile = useMobile();
@@ -54,9 +54,9 @@ export const MessageArea: React.FC<MessageAreaProps> = ({ messages }) => {
             style={{
               color: MESSAGE_COLORS[msg.type],
               lineHeight: `${lineHeight}px`,
+              whiteSpace: "pre",
             }}
           >
-            {msg.type === "critical" ? "\u26a0 " : msg.type === "positive" ? "\u2713 " : ""}
             {msg.text}
           </div>
         ))

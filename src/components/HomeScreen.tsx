@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import type { RoomInfo, LeaderboardEntryInfo } from "../../server/protocol";
+import type { GameLogSummary } from "../../server/gameLogs";
 import { RoomList } from "./RoomList";
 import { Leaderboard } from "./Leaderboard";
 import { GoogleLogin } from "./GoogleLogin";
+import { PlayedGames } from "./PlayedGames";
 import { useMobile } from "../hooks/useMobile";
 
 interface UserInfo {
@@ -31,6 +33,9 @@ interface HomeScreenProps {
   onClearLeaderboard?: () => void;
   onRemoveLeaderboardUser?: (email: string) => void;
   onDeleteRoom?: (roomCode: string) => void;
+  gameLogs: GameLogSummary[];
+  onRefreshLogs: () => void;
+  onReplay: (id: string) => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -53,6 +58,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onClearLeaderboard,
   onRemoveLeaderboardUser,
   onDeleteRoom,
+  gameLogs,
+  onRefreshLogs,
+  onReplay,
 }) => {
   const isMobile = useMobile();
   const [showCreate, setShowCreate] = useState(false);
@@ -122,8 +130,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           margin: "0 auto",
         }}
       >
-        {/* Left: Active Rooms */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Left: Active Rooms + Past Games */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
           <RoomList
             rooms={roomList}
             connected={connected}
@@ -134,6 +142,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             onObserve={onObserveRoom}
             isAdmin={isAdmin}
             onDeleteRoom={onDeleteRoom}
+          />
+          <PlayedGames
+            logs={gameLogs}
+            onReplay={onReplay}
+            onRefresh={onRefreshLogs}
           />
         </div>
 

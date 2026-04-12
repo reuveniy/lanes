@@ -62,12 +62,31 @@ export const TrapEvent: Story = {
 };
 
 export const MergerAnnouncement: Story = {
-  name: "Merger Announcement",
+  name: "Merger Results Table",
   args: {
     messages: [
-      { text: "Capella Freight merges into Altair Starways!", type: "critical" },
-      { text: "Alice: 8 shares -> 4 shares + $960 bonus", type: "positive" },
-      { text: "Bob: 3 shares -> 2 shares + $360 bonus", type: "positive" },
+      { text: "Capella Freight ($1200) merges into Altair Starways ($1800)", type: "critical" },
+      { text: "C           Old    New  Total  Bonus", type: "alert" },
+      { text: "Alice         8      4     16   $960", type: "positive" },
+      { text: "Bob           3      2      5   $360", type: "positive" },
+      { text: "Carol         0      0     10     $0", type: "info" },
+      { text: "Dave          5      3      3   $600", type: "positive" },
+      { text: "Altair Starways new price: $3000", type: "info" },
+      { text: "Altair Starways stock split! Price halved, shares doubled.", type: "alert" },
+    ],
+  },
+};
+
+export const MergerNoSplit: Story = {
+  name: "Merger (no stock split)",
+  args: {
+    messages: [
+      { text: "Betelgeuse Ltd. ($400) merges into General Motors ($1500)", type: "critical" },
+      { text: "B           Old    New  Total  Bonus", type: "alert" },
+      { text: "Alice         5      3     10   $200", type: "positive" },
+      { text: "Bob          12      6     14   $480", type: "positive" },
+      { text: "Carol         0      0      8     $0", type: "info" },
+      { text: "General Motors new price: $1900", type: "info" },
     ],
   },
 };

@@ -26,6 +26,7 @@ import {
   restoreSessions,
 } from "./gameSession";
 import { loadState, saveState } from "./persist";
+import { saveGameLog, listGameLogs, getGameLog } from "./gameLogs";
 import { verifyGoogleToken, getClientId, type GoogleUser } from "./auth";
 import {
   loadLeaderboard,
@@ -248,6 +249,27 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    // Game logs don't require auth
+    if (msg.type === "LIST_GAME_LOGS") {
+      send(ws, { type: "GAME_LOGS", logs: listGameLogs() });
+      return;
+    }
+    if (msg.type === "GET_GAME_LOG") {
+      const log = getGameLog(msg.id);
+      if (log) {
+        send(ws, { type: "GAME_LOG_DATA", log });
+      } else {
+        send(ws, { type: "ERROR", message: "Game log not found" });
+      }
+      return;
+    }
+
+    // Save game log (local games)
+    if (msg.type === "SAVE_GAME_LOG") {
+      saveGameLog(msg.log);
+      return;
+    }
+
     // GET_LEADERBOARD doesn't require auth
     if (msg.type === "GET_LEADERBOARD") {
       send(ws, { type: "LEADERBOARD", entries: getLeaderboard() });
@@ -439,6 +461,20 @@ wss.on("connection", (ws: WebSocket) => {
         break;
       }
 
+      case "STEPS_VOTE": {
+        const roomCode = wsRoomMap.get(ws);
+        if (!roomCode) return;
+        const room = getRoom(roomCode);
+        if (!room) return;
+        const voter = room.players.find((p) => p.ws === ws);
+        if (!voter) return;
+        const session = getSession(roomCode);
+        if (!session) return;
+        session.handleStepsVote(voter.playerId, msg.newSteps, msg.accept);
+        persistAll();
+        break;
+      }
+
       case "END_GAME_VOTE": {
         const roomCode = wsRoomMap.get(ws);
         if (!roomCode) return;
@@ -450,7 +486,6 @@ wss.on("connection", (ws: WebSocket) => {
         if (!session) return;
         const ended = session.handleEndGameVote(voter.playerId, msg.accept);
         if (ended) {
-          // Record leaderboard
           if (session.state.winner !== null) {
             const playerEmails = room.players.map((p) => p.email);
             const winnerEmail = room.players[session.state.winner]?.email;
@@ -460,6 +495,8 @@ wss.on("connection", (ws: WebSocket) => {
                 send(client as WebSocket, { type: "LEADERBOARD", entries: getLeaderboard() });
               }
             }
+            const log = session.getGameLog();
+            if (log) saveGameLog(log);
           }
         }
         persistAll();
@@ -481,20 +518,18 @@ wss.on("connection", (ws: WebSocket) => {
         if (session.handleAction(player.playerId, msg.action)) {
           persistAll();
 
-          // Record leaderboard on game end
+          // Record leaderboard + save game log on game end
           if (session.state.phase === "gameOver" && session.state.winner !== null) {
             const playerEmails = room.players.map((p) => p.email);
             const winnerEmail = room.players[session.state.winner]?.email;
             if (winnerEmail) {
               recordGameResult(playerEmails, winnerEmail);
-              // Broadcast updated leaderboard to all connected clients
               for (const client of wss.clients) {
-                send(client as WebSocket, {
-                  type: "LEADERBOARD",
-                  entries: getLeaderboard(),
-                });
+                send(client as WebSocket, { type: "LEADERBOARD", entries: getLeaderboard() });
               }
             }
+            const log = session.getGameLog();
+            if (log) saveGameLog(log);
           }
         }
         break;

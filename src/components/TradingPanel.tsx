@@ -63,6 +63,13 @@ export const TradingPanel: React.FC<TradingPanelProps> = ({
       return;
     }
 
+    // End trading turn: "end", "e"
+    if (lower === "end" || lower === "e") {
+      onEndTrading();
+      setAmount("");
+      return;
+    }
+
     // All in: buy max in every company until broke
     if (lower === "allin" || lower === "a") {
       onAllIn();

@@ -3,6 +3,8 @@ import type { GameState } from "../types/game";
 import type { GameAction } from "../state/actions";
 import { EMPTY_STATE } from "../state/initialState";
 import type { ServerMessage, RoomInfo, LeaderboardEntryInfo } from "../../server/protocol";
+import type { GameLog } from "../types/game";
+import type { GameLogSummary } from "../../server/gameLogs";
 
 export interface UserInfo {
   name: string;
@@ -28,6 +30,12 @@ export interface MultiplayerState {
   mapVotes: Record<number, boolean | null>;
   endGameVotes: Record<number, boolean | null>;
   endGameInitiator: string | null;
+  stepsVote: { newSteps: number; initiator: string; votes: Record<number, boolean | null> } | null;
+  gameLogs: GameLogSummary[];
+  gameLogData: GameLog | null;
+  listGameLogs: () => void;
+  getGameLog: (id: string) => void;
+  saveGameLog: (log: GameLog) => void;
   isAdmin: boolean;
   authenticate: (idToken: string) => void;
   clearLeaderboard: () => void;
@@ -39,6 +47,7 @@ export interface MultiplayerState {
   startNow: () => void;
   voteMap: (accept: boolean) => void;
   voteEndGame: (accept: boolean) => void;
+  voteSteps: (newSteps: number | null, accept?: boolean) => void;
   listRooms: () => void;
   startGame: () => void;
 }
@@ -59,6 +68,9 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntryInfo[]>([]);
   const [mapVotes, setMapVotes] = useState<Record<number, boolean | null>>({});
   const [endGameVotes, setEndGameVotes] = useState<Record<number, boolean | null>>({});
+  const [stepsVote, setStepsVote] = useState<{ newSteps: number; initiator: string; votes: Record<number, boolean | null> } | null>(null);
+  const [gameLogs, setGameLogs] = useState<GameLogSummary[]>([]);
+  const [gameLogData, setGameLogData] = useState<GameLog | null>(null);
   const [endGameInitiator, setEndGameInitiator] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -99,8 +111,9 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
         ws.send(JSON.stringify({ type: "JOIN_ROOM", roomCode: identity.roomCode }));
       }
 
-      // Fetch room list (leaderboard comes after auth)
+      // Fetch room list and game logs (leaderboard comes after auth)
       ws.send(JSON.stringify({ type: "LIST_ROOMS" }));
+      ws.send(JSON.stringify({ type: "LIST_GAME_LOGS" }));
     };
 
     ws.onclose = () => {
@@ -159,6 +172,18 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
           break;
         case "MAP_VOTES":
           setMapVotes(msg.votes);
+          break;
+        case "GAME_LOGS":
+          setGameLogs(msg.logs);
+          break;
+        case "GAME_LOG_DATA":
+          setGameLogData(msg.log);
+          break;
+        case "STEPS_VOTES":
+          setStepsVote({ newSteps: msg.newSteps, initiator: msg.initiator, votes: msg.votes });
+          break;
+        case "STEPS_VOTE_CANCELLED":
+          setStepsVote(null);
           break;
         case "END_GAME_VOTES":
           setEndGameVotes(msg.votes);
@@ -297,6 +322,12 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     mapVotes,
     endGameVotes,
     endGameInitiator,
+    stepsVote,
+    gameLogs,
+    gameLogData,
+    listGameLogs: useCallback(() => sendMsg({ type: "LIST_GAME_LOGS" }), [sendMsg]),
+    getGameLog: useCallback((id: string) => { setGameLogData(null); sendMsg({ type: "GET_GAME_LOG", id }); }, [sendMsg]),
+    saveGameLog: useCallback((log: GameLog) => sendMsg({ type: "SAVE_GAME_LOG", log }), [sendMsg]),
     isAdmin,
     authenticate,
     clearLeaderboard: clearLeaderboardCmd,
@@ -308,6 +339,11 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     ),
     voteEndGame: useCallback(
       (accept: boolean) => sendMsg({ type: "END_GAME_VOTE", accept }),
+      [sendMsg]
+    ),
+    voteSteps: useCallback(
+      (newSteps: number | null, accept?: boolean) =>
+        sendMsg({ type: "STEPS_VOTE", newSteps, accept }),
       [sendMsg]
     ),
     deleteRoom: useCallback(

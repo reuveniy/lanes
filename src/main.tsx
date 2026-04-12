@@ -5,9 +5,10 @@ import { LobbyScreen } from "./components/LobbyScreen";
 import { HomeScreen } from "./components/HomeScreen";
 import { DemoMode } from "./components/DemoMode";
 import { HelpScreen } from "./components/HelpScreen";
+import { ReplayView } from "./components/ReplayView";
 import { useMultiplayerGame } from "./hooks/useMultiplayerGame";
 
-type Screen = "home" | "lobby" | "game-local" | "demo" | "observing" | "help";
+type Screen = "home" | "lobby" | "game-local" | "demo" | "observing" | "help" | "replay";
 
 function App() {
   const [screen, setScreen] = useState<Screen>("home");
@@ -32,6 +33,8 @@ function App() {
         endGameVotes={mp.endGameVotes}
         endGameInitiator={mp.endGameInitiator}
         onEndGameVote={mp.voteEndGame}
+        stepsVote={mp.stepsVote}
+        onStepsVote={mp.voteSteps}
         onExit={() => setScreen("home")}
       />
     );
@@ -88,6 +91,9 @@ function App() {
           onClearLeaderboard={mp.clearLeaderboard}
           onRemoveLeaderboardUser={mp.removeLeaderboardUser}
           onDeleteRoom={mp.deleteRoom}
+          gameLogs={mp.gameLogs}
+          onRefreshLogs={mp.listGameLogs}
+          onReplay={(id) => { mp.getGameLog(id); setScreen("replay"); }}
         />
       );
 
@@ -126,13 +132,23 @@ function App() {
       );
 
     case "game-local":
-      return <GameView onExit={() => setScreen("home")} />;
+      return <GameView onExit={() => setScreen("home")} onSaveGameLog={mp.saveGameLog} />;
 
     case "demo":
       return <DemoMode onExit={() => setScreen("home")} />;
 
     case "help":
       return <HelpScreen onClose={() => setScreen("home")} />;
+
+    case "replay":
+      if (!mp.gameLogData) {
+        return (
+          <div style={{ fontFamily: "'Courier New', monospace", background: "#0a0a1a", color: "#9ca3af", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            Loading game replay...
+          </div>
+        );
+      }
+      return <ReplayView log={mp.gameLogData} onExit={() => setScreen("home")} />;
   }
 }
 

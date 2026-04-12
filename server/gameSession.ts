@@ -1,4 +1,4 @@
-import type { GameState, Company } from "../src/types/game";
+import type { GameState, Company, GameLogEntry, GameLog } from "../src/types/game";
 import type { GameAction } from "../src/state/actions";
 import { gameReducer } from "../src/state/reducer";
 import { EMPTY_STATE } from "../src/state/initialState";
@@ -15,6 +15,11 @@ export class GameSession {
   endGameVotes: Map<number, boolean | null> = new Map();
   endGameVotingActive = false;
   endGameInitiator: string | null = null;
+  stepsVotes: Map<number, boolean | null> = new Map();
+  stepsVotingActive = false;
+  stepsNewValue = 0;
+  stepsInitiator: string | null = null;
+  actionLog: GameLogEntry[] = [];
 
   constructor(room: Room, initialState?: GameState) {
     this.room = room;
@@ -36,6 +41,7 @@ export class GameSession {
       },
     };
     this.state = gameReducer(this.state, action);
+    this.logAction(action);
     // Stay in mapSelect — players vote to accept/reject
     this.resetMapVotes();
     this.broadcastState();
@@ -58,7 +64,9 @@ export class GameSession {
       (p) => this.mapVotes.get(p.playerId) === true
     );
     if (allVoted) {
-      this.state = gameReducer(this.state, { type: "ACCEPT_MAP" });
+      const acceptAction = { type: "ACCEPT_MAP" as const };
+      this.state = gameReducer(this.state, acceptAction);
+      this.logAction(acceptAction);
       this.broadcastState();
     }
   }
@@ -140,6 +148,67 @@ export class GameSession {
     broadcast(this.room, { type: "END_GAME_VOTES", votes, initiator: this.endGameInitiator });
   }
 
+  handleStepsVote(playerId: number, newSteps: number | null, accept?: boolean): void {
+    if (this.state.phase === "gameOver" || this.state.phase === "setup" || this.state.phase === "mapSelect") return;
+
+    // Initiating a new vote
+    if (newSteps !== null && !this.stepsVotingActive) {
+      this.stepsVotingActive = true;
+      this.stepsNewValue = newSteps;
+      const initiator = this.room.players.find((p) => p.playerId === playerId);
+      this.stepsInitiator = initiator?.name ?? null;
+      for (const p of this.room.players) {
+        this.stepsVotes.set(p.playerId, null);
+      }
+      this.stepsVotes.set(playerId, true);
+      this.broadcastStepsVotes();
+      return;
+    }
+
+    // Voting on existing proposal
+    if (this.stepsVotingActive && accept !== undefined) {
+      if (!accept) {
+        // Reject — cancel
+        this.stepsVotingActive = false;
+        this.stepsInitiator = null;
+        this.stepsVotes.clear();
+        broadcast(this.room, { type: "STEPS_VOTE_CANCELLED" });
+        return;
+      }
+
+      this.stepsVotes.set(playerId, true);
+      this.broadcastStepsVotes();
+
+      const allAccepted = this.room.players.every(
+        (p) => this.stepsVotes.get(p.playerId) === true
+      );
+      if (allAccepted) {
+        const stepsAction = { type: "CHANGE_STEPS" as const, newSteps: this.stepsNewValue };
+        this.state = gameReducer(this.state, stepsAction);
+        this.logAction(stepsAction);
+        this.stepsVotingActive = false;
+        this.stepsInitiator = null;
+        this.stepsVotes.clear();
+        this.broadcastState();
+        broadcast(this.room, { type: "STEPS_VOTE_CANCELLED" });
+      }
+    }
+  }
+
+  private broadcastStepsVotes(): void {
+    if (!this.stepsVotingActive || !this.stepsInitiator) return;
+    const votes: Record<number, boolean | null> = {};
+    for (const [id, v] of this.stepsVotes) {
+      votes[id] = v;
+    }
+    broadcast(this.room, {
+      type: "STEPS_VOTES",
+      newSteps: this.stepsNewValue,
+      initiator: this.stepsInitiator,
+      votes,
+    });
+  }
+
   handleAction(playerId: number, action: GameAction): boolean {
     if (action.type === "INIT_GAME") return false;
     if (this.state.phase === "gameOver") return false;
@@ -150,9 +219,33 @@ export class GameSession {
     if (newState === this.state) return false;
 
     this.state = newState;
+    this.logAction(action);
     this.room.lastActivity = Date.now();
     this.broadcastState();
     return true;
+  }
+
+  private logAction(action: GameAction): void {
+    this.actionLog.push({
+      step: this.state.currentStep,
+      action: JSON.stringify(action),
+      timestamp: Date.now(),
+    });
+  }
+
+  getGameLog(): GameLog | null {
+    if (!this.state.config) return null;
+    return {
+      id: this.room.code + "-" + Date.now(),
+      config: this.state.config,
+      playerNames: this.room.players.map((p) => p.name),
+      playerColors: this.state.players.map((p) => p.color),
+      winner: this.state.winner,
+      winnerName: this.state.winner !== null ? this.state.players[this.state.winner]?.name ?? "" : "",
+      totalSteps: this.state.currentStep,
+      endedAt: Date.now(),
+      actions: this.actionLog,
+    };
   }
 
   broadcastState(): void {

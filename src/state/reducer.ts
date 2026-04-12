@@ -126,26 +126,10 @@ function startTrading(state: GameState): GameState {
     soldThisTurn: 0,
   };
 
-  const company = state.companies[nextCompany];
-  const player = state.players[state.currentPlayer];
-  const maxBuy = Math.floor(player.cash / company.stockPrice);
-  const held = company.shares[state.currentPlayer];
-
   return {
     ...state,
     phase: "trading",
     tradingState,
-    messages: [
-      ...state.messages,
-      {
-        text: `Trading: ${company.name} - $${company.stockPrice}/share`,
-        type: "info",
-      },
-      {
-        text: `You hold ${held} shares. Cash: $${player.cash}. Max buy: ${maxBuy}`,
-        type: "info",
-      },
-    ],
   };
 }
 
@@ -159,28 +143,12 @@ function advanceTrading(state: GameState): GameState {
   );
 
   if (nextCompany !== null) {
-    const company = state.companies[nextCompany];
-    const player = state.players[state.currentPlayer];
-    const maxBuy = Math.floor(player.cash / company.stockPrice);
-    const held = company.shares[state.currentPlayer];
-
     return {
       ...state,
       tradingState: {
         ...state.tradingState,
         companyIndex: nextCompany,
       },
-      messages: [
-        ...state.messages,
-        {
-          text: `Trading: ${company.name} - $${company.stockPrice}/share`,
-          type: "info",
-        },
-        {
-          text: `You hold ${held} shares. Cash: $${player.cash}. Max buy: ${maxBuy}`,
-          type: "info",
-        },
-      ],
     };
   }
 
@@ -192,10 +160,6 @@ function advanceTrading(state: GameState): GameState {
   ) {
     const restart = getNextTradableCompany(state, 0, state.currentPlayer);
     if (restart !== null) {
-      const company = state.companies[restart];
-      const maxBuy = Math.floor(player.cash / company.stockPrice);
-      const held = company.shares[state.currentPlayer];
-
       return {
         ...state,
         tradingState: {
@@ -203,21 +167,6 @@ function advanceTrading(state: GameState): GameState {
           loopCount: state.tradingState.loopCount + 1,
           soldThisTurn: state.tradingState.soldThisTurn,
         },
-        messages: [
-          ...state.messages,
-          {
-            text: `You still have $${player.cash} - trading continues!`,
-            type: "info",
-          },
-          {
-            text: `Trading: ${company.name} - $${company.stockPrice}/share`,
-            type: "info",
-          },
-          {
-            text: `You hold ${held} shares. Max buy: ${maxBuy}`,
-            type: "info",
-          },
-        ],
       };
     }
   }
@@ -388,10 +337,12 @@ export function gameReducer(
       if (state.phase !== "trading" || !state.tradingState) return state;
       let s = state;
       const p = s.currentPlayer;
+      const startIdx = s.tradingState!.companyIndex;
 
-      // Buy max in every active company from current onwards, looping
+      // Buy max in every active company from current onwards, then wrap around
       for (let pass = 0; pass <= 5; pass++) {
-        for (let i = 0; i < s.companies.length; i++) {
+        const from = pass === 0 ? startIdx : 0;
+        for (let i = from; i < s.companies.length; i++) {
           const c = s.companies[i];
           if (c.size === 0 || c.stockPrice <= 0) continue;
           const affordable = Math.floor(s.players[p].cash / c.stockPrice);
@@ -411,27 +362,12 @@ export function gameReducer(
       const company = state.companies[action.companyIndex];
       if (!company || company.size === 0) return state;
 
-      const player = state.players[state.currentPlayer];
-      const maxBuy = Math.floor(player.cash / company.stockPrice);
-      const held = company.shares[state.currentPlayer];
-
       return {
         ...state,
         tradingState: {
           ...state.tradingState,
           companyIndex: action.companyIndex,
         },
-        messages: [
-          ...state.messages,
-          {
-            text: `Trading: ${company.name} - $${company.stockPrice}/share`,
-            type: "info",
-          },
-          {
-            text: `You hold ${held} shares. Cash: $${player.cash}. Max buy: ${maxBuy}`,
-            type: "info",
-          },
-        ],
       };
     }
 
@@ -440,9 +376,15 @@ export function gameReducer(
     }
 
     case "CHANGE_STEPS": {
-      if (action.newSteps <= state.currentStep || action.newSteps > 360)
-        return state;
-      return { ...state, totalSteps: action.newSteps };
+      if (action.newSteps < 1 || action.newSteps > 999) return state;
+      return {
+        ...state,
+        totalSteps: action.newSteps,
+        messages: [
+          ...state.messages,
+          { text: `Game steps changed to ${action.newSteps}`, type: "info" as const },
+        ],
+      };
     }
 
     case "END_GAME_EARLY": {

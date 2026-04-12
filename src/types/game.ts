@@ -37,6 +37,24 @@ export interface GameMessage {
   alarm?: 1 | 2 | 3; // 1=siren, 2=short alarm, 3=bell
 }
 
+export interface GameLogEntry {
+  step: number;
+  action: string; // serialized GameAction
+  timestamp: number;
+}
+
+export interface GameLog {
+  id: string;
+  config: GameConfig;
+  playerNames: string[];
+  playerColors: string[];
+  winner: number | null;
+  winnerName: string;
+  totalSteps: number;
+  endedAt: number;
+  actions: GameLogEntry[];
+}
+
 export interface Position {
   row: number;
   col: number;

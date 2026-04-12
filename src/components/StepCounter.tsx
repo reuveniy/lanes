@@ -4,17 +4,21 @@ import { useMobile } from "../hooks/useMobile";
 interface StepCounterProps {
   currentStep: number;
   totalSteps: number;
+  onClick?: () => void;
 }
 
 export const StepCounter: React.FC<StepCounterProps> = ({
   currentStep,
   totalSteps,
+  onClick,
 }) => {
   const m = useMobile();
   const progress = (currentStep / totalSteps) * 100;
 
   return (
     <div
+      onClick={onClick}
+      title={onClick ? "Click to change game steps" : undefined}
       style={{
         fontFamily: "'Courier New', monospace",
         fontSize: m ? 10 : 13,
@@ -26,6 +30,7 @@ export const StepCounter: React.FC<StepCounterProps> = ({
         display: "flex",
         alignItems: "center",
         gap: m ? 6 : 12,
+        cursor: onClick ? "pointer" : "default",
       }}
     >
       <span style={{ color: "#9ca3af", fontSize: m ? 9 : 11, textTransform: "uppercase" }}>

@@ -1,5 +1,5 @@
 import React, { useReducer, useState, useEffect, useCallback, useRef } from "react";
-import { PLAYER_COLORS, type GameConfig, type GameState } from "../types/game";
+import { PLAYER_COLORS, type GameConfig, type GameState, type GameLogEntry, type GameLog } from "../types/game";
 import type { GameAction } from "../state/actions";
 import { gameReducer } from "../state/reducer";
 import { EMPTY_STATE } from "../state/initialState";
@@ -30,7 +30,10 @@ interface GameViewProps {
   endGameVotes?: Record<number, boolean | null>;
   endGameInitiator?: string | null;
   onEndGameVote?: (accept: boolean) => void;
+  stepsVote?: { newSteps: number; initiator: string; votes: Record<number, boolean | null> } | null;
+  onStepsVote?: (newSteps: number | null, accept?: boolean) => void;
   onExit?: () => void;
+  onSaveGameLog?: (log: GameLog) => void;
 }
 
 export const GameView: React.FC<GameViewProps> = ({
@@ -44,7 +47,10 @@ export const GameView: React.FC<GameViewProps> = ({
   endGameVotes,
   endGameInitiator,
   onEndGameVote,
+  stepsVote,
+  onStepsVote,
   onExit,
+  onSaveGameLog,
 }) => {
   const [localState, localDispatch] = useReducer(gameReducer, EMPTY_STATE);
   const [selectedMove, setSelectedMove] = useState<number | null>(null);
@@ -54,11 +60,48 @@ export const GameView: React.FC<GameViewProps> = ({
   const isLandscape = useLandscape();
   const [mobileTab, setMobileTab] = useState<"map" | "status" | "holdings">("map");
   const [soundOn, setSoundOn] = useState(!isMuted());
+  const [showStepsDialog, setShowStepsDialog] = useState(false);
+  const [newStepsInput, setNewStepsInput] = useState("");
+
+  const localLogRef = useRef<GameLogEntry[]>([]);
+  const localLogSavedRef = useRef(false);
+
+  const localDispatchWithLog = useCallback((action: GameAction) => {
+    localLogRef.current.push({
+      step: localState.currentStep,
+      action: JSON.stringify(action),
+      timestamp: Date.now(),
+    });
+    localDispatch(action);
+  }, [localState.currentStep]);
 
   const state = externalState ?? localState;
-  const dispatch = externalDispatch ?? localDispatch;
+  const dispatch = externalDispatch ?? localDispatchWithLog;
   const isMultiplayer = externalState !== undefined;
   const isMyTurn = !isMultiplayer || playerId === state.currentPlayer;
+
+  // Save local game log when game ends
+  useEffect(() => {
+    if (!isMultiplayer && state.phase === "gameOver" && !localLogSavedRef.current && state.config && onSaveGameLog) {
+      localLogSavedRef.current = true;
+      const log: GameLog = {
+        id: "local-" + Date.now(),
+        config: state.config,
+        playerNames: state.players.map((p) => p.name),
+        playerColors: state.players.map((p) => p.color),
+        winner: state.winner,
+        winnerName: state.winner !== null ? state.players[state.winner]?.name ?? "" : "",
+        totalSteps: state.currentStep,
+        endedAt: Date.now(),
+        actions: localLogRef.current,
+      };
+      onSaveGameLog(log);
+    }
+    if (state.phase === "setup") {
+      localLogSavedRef.current = false;
+      localLogRef.current = [];
+    }
+  }, [state.phase, isMultiplayer, state.config, state.winner, onSaveGameLog]);
 
   // Accumulate messages across turns
   const seenRef = useRef(0);
@@ -236,7 +279,7 @@ export const GameView: React.FC<GameViewProps> = ({
           </span>
         </div>
 
-        {/* Right: end game + exit + room code */}
+        {/* Right: steps + end game + exit + room code */}
         <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 4 : 8, flex: "0 0 auto" }}>
           {isMultiplayer && onEndGameVote && (() => {
             const canEnd = state.currentStep >= 40;
@@ -388,7 +431,7 @@ export const GameView: React.FC<GameViewProps> = ({
 
         const statusBlock = (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} />
+            <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} onClick={() => { setShowStepsDialog(true); setNewStepsInput(String(state.totalSteps)); }} />
             <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} />
             <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
           </div>
@@ -417,7 +460,7 @@ export const GameView: React.FC<GameViewProps> = ({
           // Mobile: single column, all panels stacked
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} />
+              <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} onClick={() => { setShowStepsDialog(true); setNewStepsInput(String(state.totalSteps)); }} />
               {mapBlock}
               {controlsBlock}
               <MessageArea messages={messageLog} />
@@ -441,7 +484,7 @@ export const GameView: React.FC<GameViewProps> = ({
                 </div>
               </div>
               <div style={{ minWidth: isLandscape ? 180 : 220, display: "flex", flexDirection: "column", gap: g, overflow: "auto" }}>
-                <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} />
+                <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} onClick={() => { setShowStepsDialog(true); setNewStepsInput(String(state.totalSteps)); }} />
                 <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} />
                 <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
                 {holdingsBlock}
@@ -474,6 +517,160 @@ export const GameView: React.FC<GameViewProps> = ({
           onAccept={() => onEndGameVote(true)}
           onReject={() => onEndGameVote(false)}
         />
+      )}
+
+      {/* Change Steps dialog */}
+      {showStepsDialog && (() => {
+        const playerCount = state.players.length || 1;
+        // Min: at least 80 (game setup min) or current step, whichever is higher
+        // Rounded up to nearest multiple of playerCount
+        const rawMin = Math.max(80, state.currentStep);
+        const minSteps = Math.ceil(rawMin / playerCount) * playerCount;
+        const maxSteps = 360;
+        // Snap value to nearest multiple of playerCount
+        const snapValue = (v: number) => Math.round(v / playerCount) * playerCount;
+        const displayValue = snapValue(parseInt(newStepsInput) || minSteps);
+
+        return (
+          <div
+            style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
+              display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
+            }}
+            onClick={() => setShowStepsDialog(false)}
+          >
+            <div
+              onClick={(ev) => ev.stopPropagation()}
+              style={{
+                fontFamily: "'Courier New', monospace", background: "#111827",
+                border: "1px solid #374151", borderRadius: 8,
+                padding: isMobile ? 16 : 24, minWidth: isMobile ? 240 : 300, textAlign: "center",
+              }}
+            >
+              <div style={{ color: "#fbbf24", fontSize: isMobile ? 13 : 16, fontWeight: "bold", marginBottom: 12 }}>
+                Change Game Steps
+              </div>
+              <div style={{ color: "#9ca3af", fontSize: 11, marginBottom: 4 }}>
+                Current: {state.currentStep} / {state.totalSteps} ({playerCount} players)
+              </div>
+              <div style={{ color: "#fbbf24", fontSize: 20, fontWeight: "bold", marginBottom: 4 }}>
+                {displayValue}
+              </div>
+              <div style={{ color: "#4b5563", fontSize: 9, marginBottom: 8 }}>
+                Must divide by {playerCount} for fair turns
+              </div>
+              <input
+                type="range"
+                min={minSteps}
+                max={maxSteps}
+                step={playerCount}
+                value={displayValue}
+                onChange={(ev) => setNewStepsInput(ev.target.value)}
+                autoFocus
+                onKeyDown={(ev) => {
+                  if (ev.key === "Escape") setShowStepsDialog(false);
+                }}
+                style={{ width: "100%", marginBottom: 12 }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#4b5563", fontSize: 9, marginBottom: 12 }}>
+                <span>{minSteps}</span>
+                <span>{maxSteps}</span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => setShowStepsDialog(false)}
+                  style={{
+                    flex: 1, fontFamily: "'Courier New', monospace", fontSize: 13, fontWeight: "bold",
+                    background: "#374151", color: "#e5e7eb", border: "none", borderRadius: 4,
+                    padding: "8px 0", cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (displayValue >= minSteps && displayValue <= maxSteps) {
+                      if (isMultiplayer && onStepsVote) {
+                        onStepsVote(displayValue);
+                      } else {
+                        dispatch({ type: "CHANGE_STEPS", newSteps: displayValue });
+                      }
+                      setShowStepsDialog(false);
+                    }
+                  }}
+                  style={{
+                    flex: 1, fontFamily: "'Courier New', monospace", fontSize: 13, fontWeight: "bold",
+                    background: "#fbbf24", color: "#0a0a1a", border: "none", borderRadius: 4,
+                    padding: "8px 0", cursor: "pointer",
+                  }}
+                >
+                  {isMultiplayer ? "Propose" : "Set"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Steps vote popup (online) */}
+      {isMultiplayer && stepsVote && onStepsVote && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)",
+            display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "'Courier New', monospace", background: "#111827",
+              border: "1px solid #374151", borderRadius: 8,
+              padding: isMobile ? 16 : 24, minWidth: isMobile ? 260 : 320, textAlign: "center",
+            }}
+          >
+            <div style={{ color: "#f59e0b", fontSize: isMobile ? 13 : 16, fontWeight: "bold", marginBottom: 12 }}>
+              Change Steps?
+            </div>
+            <div style={{ color: "#d1d5db", fontSize: isMobile ? 11 : 13, marginBottom: 16 }}>
+              <span style={{ color: "#fbbf24" }}>{stepsVote.initiator}</span> wants to change steps
+              from <strong>{state.totalSteps}</strong> to <strong>{stepsVote.newSteps}</strong>.
+              <br />All players must agree.
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              {state.players.map((p, i) => {
+                const vote = stepsVote.votes[i];
+                const isInit = p.name === stepsVote.initiator;
+                return (
+                  <div key={i} style={{
+                    display: "flex", justifyContent: "space-between", padding: "4px 12px",
+                    fontSize: isMobile ? 11 : 13, color: p.color,
+                    background: isInit ? "rgba(245,158,11,0.1)" : "transparent", borderRadius: 4,
+                  }}>
+                    <span>{isInit && <span style={{ color: "#f59e0b", marginRight: 4 }}>★</span>}{p.name}</span>
+                    <span style={{ color: vote === true ? "#22c55e" : "#6b7280", fontWeight: vote === true ? "bold" : "normal" }}>
+                      {vote === true ? "✓ Agreed" : "Voting..."}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {(() => {
+              const myVote = playerId !== null && playerId !== undefined ? stepsVote.votes[playerId] : undefined;
+              if (myVote === true) return <div style={{ color: "#9ca3af", fontSize: 12 }}>Waiting for other players...</div>;
+              return (
+                <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+                  <button onClick={() => onStepsVote(null, false)} style={{
+                    fontFamily: "'Courier New', monospace", fontSize: isMobile ? 12 : 14, fontWeight: "bold",
+                    background: "#374151", color: "#e5e7eb", border: "none", borderRadius: 4, padding: "8px 24px", cursor: "pointer",
+                  }}>Keep Current</button>
+                  <button onClick={() => onStepsVote(null, true)} style={{
+                    fontFamily: "'Courier New', monospace", fontSize: isMobile ? 12 : 14, fontWeight: "bold",
+                    background: "#fbbf24", color: "#0a0a1a", border: "none", borderRadius: 4, padding: "8px 24px", cursor: "pointer",
+                  }}>Accept</button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
       )}
     </div>
   );
