@@ -91,6 +91,7 @@ function App() {
           onClearLeaderboard={mp.clearLeaderboard}
           onRemoveLeaderboardUser={mp.removeLeaderboardUser}
           onDeleteRoom={mp.deleteRoom}
+          onDeleteGameLog={mp.deleteGameLog}
           gameLogs={mp.gameLogs}
           onRefreshLogs={mp.listGameLogs}
           onReplay={(id) => { mp.getGameLog(id); setScreen("replay"); }}

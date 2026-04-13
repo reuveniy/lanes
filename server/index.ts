@@ -26,7 +26,7 @@ import {
   restoreSessions,
 } from "./gameSession";
 import { loadState, saveState } from "./persist";
-import { saveGameLog, listGameLogs, getGameLog } from "./gameLogs";
+import { saveGameLog, listGameLogs, getGameLog, deleteGameLog } from "./gameLogs";
 import { verifyGoogleToken, getClientId, type GoogleUser } from "./auth";
 import {
   loadLeaderboard,
@@ -591,6 +591,18 @@ wss.on("connection", (ws: WebSocket) => {
         }
         for (const client of wss.clients) {
           send(client as WebSocket, { type: "ROOM_LIST", rooms: updatedRooms });
+        }
+        break;
+      }
+
+      case "ADMIN_DELETE_GAME_LOG": {
+        if (user.email.toLowerCase() !== ADMIN_EMAIL) {
+          send(ws, { type: "ERROR", message: "Not authorized" });
+          return;
+        }
+        deleteGameLog(msg.id);
+        for (const client of wss.clients) {
+          send(client as WebSocket, { type: "GAME_LOGS", logs: listGameLogs() });
         }
         break;
       }

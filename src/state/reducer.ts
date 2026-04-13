@@ -285,8 +285,12 @@ export function gameReducer(
         // If we paused for a merger/founding announcement, now do post-placement
         const pendingMove = state.moveOptions[0];
         if (pendingMove && pendingMove.label === "!") {
+          // Strip alarm from already-played messages to avoid replaying sounds
+          const clearedMessages = state.messages.map((m) =>
+            m.alarm ? { ...m, alarm: undefined } : m
+          );
           let s = processPostPlacement(
-            { ...state, messages: [...state.messages] },
+            { ...state, messages: clearedMessages },
             pendingMove.row,
             pendingMove.col
           );

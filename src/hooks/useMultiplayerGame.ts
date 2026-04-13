@@ -36,6 +36,7 @@ export interface MultiplayerState {
   listGameLogs: () => void;
   getGameLog: (id: string) => void;
   saveGameLog: (log: GameLog) => void;
+  deleteGameLog: (id: string) => void;
   isAdmin: boolean;
   authenticate: (idToken: string) => void;
   clearLeaderboard: () => void;
@@ -328,6 +329,7 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     listGameLogs: useCallback(() => sendMsg({ type: "LIST_GAME_LOGS" }), [sendMsg]),
     getGameLog: useCallback((id: string) => { setGameLogData(null); sendMsg({ type: "GET_GAME_LOG", id }); }, [sendMsg]),
     saveGameLog: useCallback((log: GameLog) => sendMsg({ type: "SAVE_GAME_LOG", log }), [sendMsg]),
+    deleteGameLog: useCallback((id: string) => sendMsg({ type: "ADMIN_DELETE_GAME_LOG", id }), [sendMsg]),
     isAdmin,
     authenticate,
     clearLeaderboard: clearLeaderboardCmd,

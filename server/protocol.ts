@@ -20,7 +20,8 @@ export type ClientMessage =
   | { type: "GAME_ACTION"; action: GameAction }
   | { type: "ADMIN_CLEAR_LEADERBOARD" }
   | { type: "ADMIN_REMOVE_LEADERBOARD_USER"; email: string }
-  | { type: "ADMIN_DELETE_ROOM"; roomCode: string };
+  | { type: "ADMIN_DELETE_ROOM"; roomCode: string }
+  | { type: "ADMIN_DELETE_GAME_LOG"; id: string };
 
 export interface LeaderboardEntryInfo {
   email: string;

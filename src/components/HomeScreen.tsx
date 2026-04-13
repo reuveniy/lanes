@@ -33,6 +33,7 @@ interface HomeScreenProps {
   onClearLeaderboard?: () => void;
   onRemoveLeaderboardUser?: (email: string) => void;
   onDeleteRoom?: (roomCode: string) => void;
+  onDeleteGameLog?: (id: string) => void;
   gameLogs: GameLogSummary[];
   onRefreshLogs: () => void;
   onReplay: (id: string) => void;
@@ -58,6 +59,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onClearLeaderboard,
   onRemoveLeaderboardUser,
   onDeleteRoom,
+  onDeleteGameLog,
   gameLogs,
   onRefreshLogs,
   onReplay,
@@ -147,6 +149,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             logs={gameLogs}
             onReplay={onReplay}
             onRefresh={onRefreshLogs}
+            isAdmin={isAdmin}
+            onDelete={onDeleteGameLog}
           />
         </div>
 

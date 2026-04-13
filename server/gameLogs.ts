@@ -62,3 +62,11 @@ export function getGameLog(id: string): GameLog | null {
     return null;
   }
 }
+
+export function deleteGameLog(id: string): boolean {
+  ensureDir();
+  const filepath = path.join(LOGS_DIR, `${id}.json`);
+  if (!fs.existsSync(filepath)) return false;
+  fs.unlinkSync(filepath);
+  return true;
+}
