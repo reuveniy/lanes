@@ -27,7 +27,8 @@ export type ClientMessage =
   | { type: "SEND_GAME_RESULTS_WHATSAPP"; state?: import("../src/types/game").GameState }
   | { type: "SEND_BOARD_WHATSAPP"; state?: import("../src/types/game").GameState }
   | { type: "RETIRE" }
-  | { type: "PAUSE_VOTE"; accept: boolean };
+  | { type: "PAUSE_VOTE"; accept: boolean }
+  | { type: "UPDATE_TIMEOUT"; timeout: number };
 
 export interface LeaderboardEntryInfo {
   email: string;
@@ -81,7 +82,7 @@ export type ServerMessage =
   | { type: "GAME_LOGS"; logs: import("./gameLogs").GameLogSummary[] }
   | { type: "GAME_LOG_DATA"; log: import("../src/types/game").GameLog }
   | { type: "LEADERBOARD"; entries: LeaderboardEntryInfo[] }
-  | { type: "MOVE_TIMER"; deadline: number; playerId: number }
+  | { type: "MOVE_TIMER"; deadline: number; remainingMs: number; playerId: number }
   | { type: "PAUSE_VOTES"; votes: Record<number, boolean | null>; initiator: string | null }
   | { type: "PAUSE_CANCELLED" }
   | { type: "RETIRED_PLAYERS"; playerIds: number[] }

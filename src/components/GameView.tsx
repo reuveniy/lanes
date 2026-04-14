@@ -43,6 +43,7 @@ interface GameViewProps {
   paused?: boolean;
   onPauseVote?: (accept: boolean) => void;
   retiredPlayers?: Set<number>;
+  onUpdateTimeout?: (timeout: number) => void;
   onExit?: () => void;
   onSaveGameLog?: (log: GameLog) => void;
 }
@@ -70,6 +71,7 @@ export const GameView: React.FC<GameViewProps> = ({
   paused: isPaused,
   onPauseVote,
   retiredPlayers,
+  onUpdateTimeout,
   onExit,
   onSaveGameLog,
 }) => {
@@ -83,6 +85,8 @@ export const GameView: React.FC<GameViewProps> = ({
   const [soundOn, setSoundOn] = useState(!isMuted());
   const [showStepsDialog, setShowStepsDialog] = useState(false);
   const [showRetireModal, setShowRetireModal] = useState(false);
+  const [showTimeoutDialog, setShowTimeoutDialog] = useState(false);
+  const [timeoutInput, setTimeoutInput] = useState(60);
   const [newStepsInput, setNewStepsInput] = useState("");
 
   const localLogRef = useRef<GameLogEntry[]>([]);
@@ -415,28 +419,6 @@ export const GameView: React.FC<GameViewProps> = ({
         </div>
       </div>
 
-      {/* Move timer countdown */}
-      {isMultiplayer && moveTimer && moveTimer.playerId === state.currentPlayer && state.phase === "move" && (
-        <MoveTimerDisplay deadline={moveTimer.deadline} isMyTurn={isMyTurn} playerName={state.players[state.currentPlayer]?.name ?? ""} playerColor={state.players[state.currentPlayer]?.color ?? "#9ca3af"} />
-      )}
-
-      {/* Turn indicator for multiplayer (only if no timer shown) */}
-      {isMultiplayer && !isMyTurn && !(moveTimer && moveTimer.playerId === state.currentPlayer && state.phase === "move") && (
-        <div
-          style={{
-            textAlign: "center",
-            marginBottom: 8,
-            padding: "6px 12px",
-            background: "#1f2937",
-            border: "1px solid #374151",
-            borderRadius: 4,
-            color: state.players[state.currentPlayer]?.color ?? "#9ca3af",
-            fontSize: 13,
-          }}
-        >
-          Waiting for {state.players[state.currentPlayer]?.name}...
-        </div>
-      )}
 
       {/* Controls (shared between layouts) */}
       {(() => {
@@ -522,7 +504,7 @@ export const GameView: React.FC<GameViewProps> = ({
         const statusBlock = (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} onClick={() => { setShowStepsDialog(true); setNewStepsInput(String(state.totalSteps)); }} />
-            <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} />
+            <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} timerDeadline={moveTimer && moveTimer.playerId === state.currentPlayer && state.phase === "move" ? moveTimer.deadline : null} myPlayerId={playerId} onTimerDoubleClick={onUpdateTimeout ? () => { setTimeoutInput(state.config?.moveTimeout ?? 60); setShowTimeoutDialog(true); } : undefined} />
             <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
           </div>
         );
@@ -554,7 +536,7 @@ export const GameView: React.FC<GameViewProps> = ({
               {mapBlock}
               {controlsBlock}
               <MessageArea messages={messageLog} />
-              <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} />
+              <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} timerDeadline={moveTimer && moveTimer.playerId === state.currentPlayer && state.phase === "move" ? moveTimer.deadline : null} myPlayerId={playerId} onTimerDoubleClick={onUpdateTimeout ? () => { setTimeoutInput(state.config?.moveTimeout ?? 60); setShowTimeoutDialog(true); } : undefined} />
               <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
               {holdingsBlock}
             </div>
@@ -575,7 +557,7 @@ export const GameView: React.FC<GameViewProps> = ({
               </div>
               <div style={{ minWidth: isLandscape ? 180 : 220, display: "flex", flexDirection: "column", gap: g, overflow: "auto" }}>
                 <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} onClick={() => { setShowStepsDialog(true); setNewStepsInput(String(state.totalSteps)); }} />
-                <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} />
+                <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} timerDeadline={moveTimer && moveTimer.playerId === state.currentPlayer && state.phase === "move" ? moveTimer.deadline : null} myPlayerId={playerId} onTimerDoubleClick={onUpdateTimeout ? () => { setTimeoutInput(state.config?.moveTimeout ?? 60); setShowTimeoutDialog(true); } : undefined} />
                 <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
                 {holdingsBlock}
               </div>
@@ -647,6 +629,39 @@ export const GameView: React.FC<GameViewProps> = ({
                 <button onClick={() => onPauseVote(true)} style={{ fontFamily: "'Courier New', monospace", fontSize: isMobile ? 12 : 14, fontWeight: "bold", background: "#60a5fa", color: "#0a0a1a", border: "none", borderRadius: 4, padding: "8px 24px", cursor: "pointer" }}>Pause</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Change Timeout dialog */}
+      {showTimeoutDialog && onUpdateTimeout && (
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ fontFamily: "'Courier New', monospace", background: "#111827", border: "1px solid #374151", borderRadius: 8, padding: isMobile ? 16 : 24, minWidth: isMobile ? 260 : 320, textAlign: "center" }}>
+            <div style={{ color: "#60a5fa", fontSize: isMobile ? 13 : 16, fontWeight: "bold", marginBottom: 12 }}>
+              Move Timeout
+            </div>
+            <div style={{ color: "#d1d5db", fontSize: isMobile ? 11 : 13, marginBottom: 16 }}>
+              {timeoutInput === 0 ? "OFF" : `${timeoutInput} seconds`}
+            </div>
+            <input
+              type="range" min={0} max={300} step={5} value={timeoutInput}
+              onChange={(e) => setTimeoutInput(Number(e.target.value))}
+              style={{ width: "100%", marginBottom: 16 }}
+            />
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button
+                onClick={() => setShowTimeoutDialog(false)}
+                style={{ fontFamily: "'Courier New', monospace", fontSize: isMobile ? 12 : 14, fontWeight: "bold", background: "#374151", color: "#e5e7eb", border: "none", borderRadius: 4, padding: "8px 24px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { onUpdateTimeout(timeoutInput); setShowTimeoutDialog(false); }}
+                style={{ fontFamily: "'Courier New', monospace", fontSize: isMobile ? 12 : 14, fontWeight: "bold", background: "#60a5fa", color: "#0a0a1a", border: "none", borderRadius: 4, padding: "8px 24px", cursor: "pointer" }}
+              >
+                Update
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -814,7 +829,8 @@ export const MoveTimerDisplay: React.FC<{
   isMyTurn: boolean;
   playerName: string;
   playerColor: string;
-}> = ({ deadline, isMyTurn, playerName, playerColor }) => {
+  onDoubleClick?: () => void;
+}> = ({ deadline, isMyTurn, playerName, playerColor, onDoubleClick }) => {
   const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
 
   useEffect(() => {
@@ -831,6 +847,8 @@ export const MoveTimerDisplay: React.FC<{
 
   return (
     <div
+      onDoubleClick={onDoubleClick}
+      title={onDoubleClick ? "Double-click to change timeout" : undefined}
       style={{
         textAlign: "center",
         marginBottom: 8,
@@ -843,6 +861,7 @@ export const MoveTimerDisplay: React.FC<{
         justifyContent: "center",
         alignItems: "center",
         gap: 8,
+        cursor: onDoubleClick ? "pointer" : undefined,
       }}
     >
       <span style={{ color: playerColor }}>

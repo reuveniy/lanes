@@ -54,6 +54,7 @@ export interface MultiplayerState {
   sendBoardWhatsApp: (state?: import("../types/game").GameState) => void;
   retire: () => void;
   votePause: (accept: boolean) => void;
+  updateTimeout: (timeout: number) => void;
   createRoom: (maxPlayers: number, starCount: number, totalSteps: number, doublePayCount: number, fogOfWar: boolean, moveTimeout: number, zoomLink?: string) => void;
   joinRoom: (roomCode: string) => void;
   observeRoom: (roomCode: string) => void;
@@ -114,10 +115,14 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
 
     wsRef.current = ws;
 
+    let lastMessageAt = Date.now();
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
     ws.onopen = () => {
       setConnected(true);
       setError(null);
       retryDelayRef.current = 1000;
+      lastMessageAt = Date.now();
 
       // Re-authenticate if we have a token
       if (tokenRef.current) {
@@ -133,9 +138,18 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
       // Fetch room list and game logs (leaderboard comes after auth)
       ws.send(JSON.stringify({ type: "LIST_ROOMS" }));
       ws.send(JSON.stringify({ type: "LIST_GAME_LOGS" }));
+
+      // Heartbeat: detect stale connections (no message for 30s → force reconnect)
+      heartbeatInterval = setInterval(() => {
+        if (Date.now() - lastMessageAt > 30000) {
+          console.warn("WebSocket stale — no message for 30s, reconnecting");
+          ws.close();
+        }
+      }, 10000);
     };
 
     ws.onclose = () => {
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
       setConnected(false);
       setAuthenticated(false);
       setObserving(false);
@@ -148,6 +162,7 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     };
 
     ws.onmessage = (event) => {
+      lastMessageAt = Date.now();
       let msg: ServerMessage;
       try {
         msg = JSON.parse(event.data);
@@ -224,7 +239,8 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
           setStepsVote(null);
           break;
         case "MOVE_TIMER":
-          setMoveTimer({ deadline: msg.deadline, playerId: msg.playerId });
+          // Use remainingMs to compute deadline from client clock (avoids server/client time drift)
+          setMoveTimer({ deadline: Date.now() + (msg.remainingMs ?? Math.max(0, msg.deadline - Date.now())), playerId: msg.playerId });
           setPaused(false);
           break;
         case "PAUSE_VOTES":
@@ -295,7 +311,21 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
   useEffect(() => {
     if (!enabled) return;
     connect();
+
+    // Reconnect when tab becomes visible (catches mobile sleep / laptop lid)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const ws = wsRef.current;
+        if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+          console.log("Tab visible — reconnecting stale WebSocket");
+          connect();
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
       if (retryRef.current) clearTimeout(retryRef.current);
       wsRef.current?.close();
       wsRef.current = null;
@@ -454,6 +484,10 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     ),
     votePause: useCallback(
       (accept: boolean) => sendMsg({ type: "PAUSE_VOTE", accept }),
+      [sendMsg]
+    ),
+    updateTimeout: useCallback(
+      (timeout: number) => sendMsg({ type: "UPDATE_TIMEOUT", timeout }),
       [sendMsg]
     ),
     createRoom,

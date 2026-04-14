@@ -200,6 +200,13 @@ function requireAuth(ws: WebSocket): GoogleUser | null {
   return user;
 }
 
+// Ping all clients every 20s to keep connections alive and detect dead sockets
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.readyState === 1) ws.ping();
+  }
+}, 20000);
+
 wss.on("connection", (ws: WebSocket) => {
   ws.on("error", (err) => {
     console.error("WebSocket connection error:", err.message);
@@ -557,7 +564,7 @@ wss.on("connection", (ws: WebSocket) => {
 
           const deadline = existingSession.getMoveDeadline();
           if (deadline > Date.now()) {
-            send(ws, { type: "MOVE_TIMER", deadline, playerId: existingSession.state.currentPlayer });
+            send(ws, { type: "MOVE_TIMER", deadline, remainingMs: Math.max(0, deadline - Date.now()), playerId: existingSession.state.currentPlayer });
           }
         }
 
@@ -675,6 +682,25 @@ wss.on("connection", (ws: WebSocket) => {
             const log = session.getGameLog(true);
             if (log) saveGameLog(log);
           }
+        }
+        persistAll();
+        break;
+      }
+
+      case "UPDATE_TIMEOUT": {
+        const roomCode = wsRoomMap.get(ws);
+        if (!roomCode) return;
+        const room = getRoom(roomCode);
+        if (!room) return;
+        const newTimeout = Math.min(300, Math.max(0, msg.timeout || 0));
+        room.moveTimeout = newTimeout;
+        console.log(`Timeout updated to ${newTimeout}s for room ${roomCode} by ${user.name}`);
+        // Broadcast new timeout to all players via MOVE_TIMER with 0 deadline (info only)
+        broadcast(room, { type: "MOVE_TIMER", deadline: 0, remainingMs: 0, playerId: -1 });
+        // If a timer is active, restart it with the new timeout
+        const session = getSession(roomCode);
+        if (session && session.state.phase === "move" && !session.paused) {
+          session.startMoveTimerIfNeeded();
         }
         persistAll();
         break;

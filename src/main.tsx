@@ -47,6 +47,7 @@ function App() {
         paused={mp.paused}
         onPauseVote={mp.votePause}
         retiredPlayers={mp.retiredPlayers}
+        onUpdateTimeout={mp.updateTimeout}
         onShareWhatsApp={mp.sendGameResultsWhatsApp}
         onShareBoardWhatsApp={mp.sendBoardWhatsApp}
         onRetire={mp.retire}

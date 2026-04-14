@@ -202,8 +202,11 @@ export class GameSession {
 
   private regenerateMap(): void {
     if (!this.state.config) return;
+    // Preserve turn order and starting player across map regenerations
+    const { turnOrder, currentPlayer } = this.state;
     const newConfig = { ...this.state.config, seed: Date.now() };
     this.state = gameReducer(this.state, { type: "INIT_GAME", config: newConfig });
+    this.state = { ...this.state, turnOrder, currentPlayer };
     // Stay in mapSelect
     this.resetMapVotes();
     this.broadcastState();
@@ -491,6 +494,7 @@ export class GameSession {
     broadcast(this.room, {
       type: "MOVE_TIMER",
       deadline: this.moveDeadline,
+      remainingMs: Math.max(0, this.moveDeadline - Date.now()),
       playerId: this.state.currentPlayer,
     });
 
