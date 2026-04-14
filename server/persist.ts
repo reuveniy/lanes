@@ -8,13 +8,15 @@ const STATE_FILE = path.join(DATA_DIR, "rooms.json");
 /** Serializable room data (no WebSocket refs) */
 export interface PersistedRoom {
   code: string;
-  players: { name: string; email: string; playerId: number }[];
+  players: { name: string; email: string; playerId: number; retired?: boolean }[];
   hostId: number;
   maxPlayers: number;
   starCount: number;
   totalSteps: number;
   doublePayCount: number;
   fogOfWar: boolean;
+  moveTimeout: number;
+  zoomLink?: string;
   started: boolean;
   lastActivity: number;
 }

@@ -76,8 +76,10 @@ export function checkDoublePay(
   if (playerIndex === leader) return state;
 
   const players = state.players.map((p) => ({ ...p }));
+  const dpBonus = players[playerIndex].cash; // cash before doubling
   players[playerIndex].cash *= 2;
   players[playerIndex].doublePays++;
+  players[playerIndex].totalBonusReceived += dpBonus;
 
   const messages: GameMessage[] = [
     ...state.messages,
@@ -113,6 +115,8 @@ export function checkTrap(
   if (rng.next() <= 0.65) {
     lostCash = players[playerIndex].cash;
     players[playerIndex].cash = 0;
+    players[playerIndex].trapCount++;
+    players[playerIndex].totalTrapLost += lostCash;
     messages.push({
       text: `TRAP! ${players[playerIndex].name} lost ALL cash ($${lostCash})!`,
       type: "critical",
@@ -121,6 +125,8 @@ export function checkTrap(
   } else {
     lostCash = Math.floor(players[playerIndex].cash / 2);
     players[playerIndex].cash -= lostCash;
+    players[playerIndex].halfTrapCount++;
+    players[playerIndex].totalTrapLost += lostCash;
     messages.push({
       text: `TRAP! ${players[playerIndex].name} lost half their cash ($${lostCash})!`,
       type: "critical",
@@ -149,6 +155,8 @@ export function checkBonusPayment(
 
   const players = state.players.map((p) => ({ ...p }));
   players[playerIndex].cash += bonus;
+  players[playerIndex].bonusCount++;
+  players[playerIndex].totalBonusReceived += bonus;
 
   const messages: GameMessage[] = [
     ...state.messages,
@@ -191,7 +199,8 @@ export function checkSpecialHelp(
 
   const players = state.players.map((p) => ({ ...p }));
   players[playerIndex].cash += bonus;
-  players[playerIndex].doublePays++;
+  players[playerIndex].specialHelpCount++;
+  players[playerIndex].totalBonusReceived += bonus;
 
   const messages: GameMessage[] = [
     ...state.messages,

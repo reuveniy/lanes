@@ -221,11 +221,13 @@ export function removeLeaderboardUser(email: string): boolean {
   return true;
 }
 
-/** Get sorted leaderboard (most wins first) */
+/** Get sorted leaderboard (highest win percentage first) */
 export function getLeaderboard(): LeaderboardEntry[] {
   return [...leaderboard.values()].sort((a, b) => {
+    const pctA = a.games > 0 ? a.wins / a.games : 0;
+    const pctB = b.games > 0 ? b.wins / b.games : 0;
+    if (pctB !== pctA) return pctB - pctA;
     if (b.wins !== a.wins) return b.wins - a.wins;
-    if (b.games !== a.games) return a.games - b.games;
     return a.name.localeCompare(b.name);
   });
 }

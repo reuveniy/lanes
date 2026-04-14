@@ -5,14 +5,16 @@ import { ExitButton } from "./ExitButton";
 
 interface GameOverScreenProps {
   state: GameState;
-  onPlayAgain: () => void;
+  onPlayAgain?: () => void;
   onExit?: () => void;
+  onShareWhatsApp?: () => void;
 }
 
 export const GameOverScreen: React.FC<GameOverScreenProps> = ({
   state,
   onPlayAgain,
   onExit,
+  onShareWhatsApp,
 }) => {
   const m = useMobile();
   const sortedPlayers = [...state.players].sort(
@@ -126,24 +128,45 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
         </div>
       </div>
 
-      <button
-        onClick={onPlayAgain}
-        style={{
-          fontFamily: "'Courier New', monospace",
-          fontSize: m ? 14 : 16,
-          fontWeight: "bold",
-          background: "#fbbf24",
-          color: "#0a0a1a",
-          border: "none",
-          borderRadius: 4,
-          padding: m ? "8px 24px" : "10px 32px",
-          cursor: "pointer",
-          letterSpacing: 2,
-          marginTop: m ? 16 : 24,
-        }}
-      >
-        PLAY AGAIN
-      </button>
+      <div style={{ display: "flex", gap: 12, marginTop: m ? 16 : 24 }}>
+        {onPlayAgain && (
+          <button
+            onClick={onPlayAgain}
+            style={{
+              fontFamily: "'Courier New', monospace",
+              fontSize: m ? 14 : 16,
+              fontWeight: "bold",
+              background: "#fbbf24",
+              color: "#0a0a1a",
+              border: "none",
+              borderRadius: 4,
+              padding: m ? "8px 24px" : "10px 32px",
+              cursor: "pointer",
+              letterSpacing: 2,
+            }}
+          >
+            PLAY AGAIN
+          </button>
+        )}
+        {onShareWhatsApp && (
+          <button
+            onClick={onShareWhatsApp}
+            style={{
+              fontFamily: "'Courier New', monospace",
+              fontSize: m ? 14 : 16,
+              fontWeight: "bold",
+              background: "#22c55e",
+              color: "#fff",
+              border: "none",
+              borderRadius: 4,
+              padding: m ? "8px 16px" : "10px 24px",
+              cursor: "pointer",
+            }}
+          >
+            WhatsApp
+          </button>
+        )}
+      </div>
 
       {onExit && (
         <div style={{ marginTop: 8 }}>

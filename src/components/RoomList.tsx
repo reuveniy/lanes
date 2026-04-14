@@ -12,6 +12,7 @@ interface RoomListProps {
   onJoin: (roomCode: string) => void;
   onObserve: (roomCode: string) => void;
   onDeleteRoom?: (roomCode: string) => void;
+  onEndGame?: (roomCode: string) => void;
 }
 
 export const RoomList: React.FC<RoomListProps> = ({
@@ -24,6 +25,7 @@ export const RoomList: React.FC<RoomListProps> = ({
   onObserve,
   isAdmin,
   onDeleteRoom,
+  onEndGame,
 }) => {
   const isMobile = useMobile();
 
@@ -147,6 +149,20 @@ export const RoomList: React.FC<RoomListProps> = ({
                   }}
                 >
                   {room.code}
+                  {room.zoomLink && room.phase !== "gameOver" && (
+                    <a
+                      href={room.zoomLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Join Zoom session"
+                      style={{ marginLeft: 4, verticalAlign: "middle" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <svg width={12} height={12} viewBox="0 0 24 24" fill="#2d8cff">
+                        <path d="M4 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3l4 3V6l-4 3V5a2 2 0 0 0-2-2H4zm0 2h10v10H4V5z"/>
+                      </svg>
+                    </a>
+                  )}
                 </td>
                 <td style={{ padding: "3px 4px", color: "#9ca3af" }}>
                   {room.players.map((p, j) => (
@@ -165,9 +181,31 @@ export const RoomList: React.FC<RoomListProps> = ({
                   </td>
                 )}
                 <td style={{ padding: "3px 4px", textAlign: "right", display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                  {authenticated && userEmail && (() => {
-                    const isPlayer = false; // emails no longer exposed for privacy
-                    const canJoinLobby = !room.started && room.players.length < (room.maxPlayers || 6) && !isPlayer;
+                  {/* Game Over → Show (visible to all users) */}
+                  {room.phase === "gameOver" && (
+                    <button
+                      onClick={() => onObserve(room.code)}
+                      style={{
+                        fontFamily: "'Courier New', monospace",
+                        fontSize: 11,
+                        background: "#6b7280",
+                        color: "#e5e7eb",
+                        border: "none",
+                        borderRadius: 3,
+                        padding: "3px 10px",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Show
+                    </button>
+                  )}
+                  {authenticated && userEmail && room.phase !== "gameOver" && (() => {
+                    const isPlayer = room.playerEmails?.includes(userEmail);
+                    const isStarted = room.started;
+                    const isFull = room.players.length >= (room.maxPlayers || 6);
+
+                    // Player is in this game → Rejoin
                     if (isPlayer) return (
                       <button
                         onClick={() => onJoin(room.code)}
@@ -186,7 +224,9 @@ export const RoomList: React.FC<RoomListProps> = ({
                         Rejoin
                       </button>
                     );
-                    if (canJoinLobby) return (
+
+                    // Not started + not player + not full → Join
+                    if (!isStarted && !isPlayer && !isFull) return (
                       <button
                         onClick={() => onJoin(room.code)}
                         style={{
@@ -204,23 +244,47 @@ export const RoomList: React.FC<RoomListProps> = ({
                         Join
                       </button>
                     );
+
+                    // Started + not player → Observe
+                    if (isStarted && !isPlayer) return (
+                      <button
+                        onClick={() => onObserve(room.code)}
+                        style={{
+                          fontFamily: "'Courier New', monospace",
+                          fontSize: 11,
+                          background: "#374151",
+                          color: "#9ca3af",
+                          border: "1px solid #4b5563",
+                          borderRadius: 3,
+                          padding: "3px 10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Observe
+                      </button>
+                    );
+
                     return null;
                   })()}
-                  <button
-                    onClick={() => onObserve(room.code)}
-                    style={{
-                      fontFamily: "'Courier New', monospace",
-                      fontSize: 11,
-                      background: "#374151",
-                      color: "#9ca3af",
-                      border: "1px solid #4b5563",
-                      borderRadius: 3,
-                      padding: "3px 10px",
-                      cursor: "pointer",
+                  {isAdmin && onEndGame && room.started && room.phase !== "gameOver" && (
+                    <button
+                      onClick={() => onEndGame(room.code)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "2px",
+                        lineHeight: 1,
                       }}
+                      title="End game now"
                     >
-                      Observe
+                      <svg width={14} height={14} viewBox="0 0 24 24" fill="none"
+                        stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <rect x="8" y="8" width="8" height="8" />
+                      </svg>
                     </button>
+                  )}
                   {isAdmin && onDeleteRoom && (
                     <button
                       onClick={() => onDeleteRoom(room.code)}

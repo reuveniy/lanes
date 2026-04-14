@@ -23,6 +23,13 @@ export interface Player {
   color: string;
   netWorth: number;
   doublePays: number;
+  bonusCount: number;
+  totalBonusReceived: number;
+  freezeCount: number;
+  trapCount: number;
+  halfTrapCount: number;
+  totalTrapLost: number;
+  specialHelpCount: number;
 }
 
 export interface MoveOption {
@@ -80,6 +87,7 @@ export interface GameConfig {
   doublePayCount: number;
   seed: number;
   scoreRecorded: boolean;
+  moveTimeout?: number; // seconds, 0 = no timeout
 }
 
 export type GamePhase =

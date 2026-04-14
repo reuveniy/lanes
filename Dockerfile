@@ -1,5 +1,7 @@
 FROM node:20-alpine AS build
 
+RUN apk add --no-cache python3 make g++ pkgconfig pixman-dev cairo-dev pango-dev libjpeg-turbo-dev giflib-dev
+
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -8,9 +10,13 @@ RUN npm run build
 
 FROM node:20-alpine
 
+RUN apk add --no-cache cairo pango libjpeg-turbo giflib pixman font-dejavu
+
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm install tsx
+RUN apk add --no-cache python3 make g++ pkgconfig pixman-dev cairo-dev pango-dev libjpeg-turbo-dev giflib-dev \
+    && npm ci --omit=dev && npm install tsx \
+    && apk del python3 make g++ pkgconfig pixman-dev cairo-dev pango-dev libjpeg-turbo-dev giflib-dev
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY src/types ./src/types

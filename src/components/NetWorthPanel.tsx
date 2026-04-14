@@ -5,11 +5,13 @@ import { useMobile } from "../hooks/useMobile";
 interface NetWorthPanelProps {
   players: Player[];
   currentPlayer: number;
+  retiredPlayers?: Set<number>;
 }
 
 export const NetWorthPanel: React.FC<NetWorthPanelProps> = ({
   players,
   currentPlayer,
+  retiredPlayers,
 }) => {
   const m = useMobile();
   const maxWorth = Math.max(...players.map((p) => p.netWorth), 1);
@@ -53,7 +55,7 @@ export const NetWorthPanel: React.FC<NetWorthPanelProps> = ({
               }}
             >
               {player.index === currentPlayer ? "\u25b6 " : "  "}
-              {player.name}
+              {player.name}{retiredPlayers?.has(player.index) ? " (R)" : ""}
             </span>
             <span style={{ color: "#d1d5db" }}>
               ${player.netWorth.toLocaleString()}

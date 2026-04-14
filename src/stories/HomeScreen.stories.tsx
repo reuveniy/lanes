@@ -52,6 +52,7 @@ export const ConnectedNotLoggedIn: Story = {
       {
         code: "A3X7",
         players: ["Alice", "Bob"],
+        playerEmails: ["alice@test.com", "bob@test.com"],
         maxPlayers: 4,
         started: true,
         currentStep: 45,
@@ -61,6 +62,7 @@ export const ConnectedNotLoggedIn: Story = {
       {
         code: "K9F2",
         players: ["Carol"],
+        playerEmails: ["carol@test.com"],
         maxPlayers: 4,
         started: false,
         currentStep: 0,
@@ -89,6 +91,7 @@ export const LoggedIn: Story = {
       {
         code: "A3X7",
         players: ["Alice", "Bob"],
+        playerEmails: ["alice@test.com", "bob@test.com"],
         maxPlayers: 4,
         started: true,
         currentStep: 45,
@@ -98,6 +101,7 @@ export const LoggedIn: Story = {
       {
         code: "K9F2",
         players: ["Carol"],
+        playerEmails: ["carol@test.com"],
         maxPlayers: 4,
         started: false,
         currentStep: 0,

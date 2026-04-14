@@ -37,12 +37,24 @@ export interface MultiplayerState {
   getGameLog: (id: string) => void;
   saveGameLog: (log: GameLog) => void;
   deleteGameLog: (id: string) => void;
+  moveTimer: { deadline: number; playerId: number } | null;
+  zoomLink: string | null;
+  pauseVotes: Record<number, boolean | null>;
+  pauseInitiator: string | null;
+  paused: boolean;
+  retiredPlayers: Set<number>;
   isAdmin: boolean;
   authenticate: (idToken: string) => void;
   clearLeaderboard: () => void;
   removeLeaderboardUser: (email: string) => void;
   deleteRoom: (roomCode: string) => void;
-  createRoom: (maxPlayers: number, starCount: number, totalSteps: number, doublePayCount: number, fogOfWar: boolean) => void;
+  endGame: (roomCode: string) => void;
+  sendLeaderboardWhatsApp: () => void;
+  sendGameResultsWhatsApp: (state?: import("../types/game").GameState) => void;
+  sendBoardWhatsApp: (state?: import("../types/game").GameState) => void;
+  retire: () => void;
+  votePause: (accept: boolean) => void;
+  createRoom: (maxPlayers: number, starCount: number, totalSteps: number, doublePayCount: number, fogOfWar: boolean, moveTimeout: number, zoomLink?: string) => void;
   joinRoom: (roomCode: string) => void;
   observeRoom: (roomCode: string) => void;
   startNow: () => void;
@@ -73,6 +85,12 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
   const [gameLogs, setGameLogs] = useState<GameLogSummary[]>([]);
   const [gameLogData, setGameLogData] = useState<GameLog | null>(null);
   const [endGameInitiator, setEndGameInitiator] = useState<string | null>(null);
+  const [moveTimer, setMoveTimer] = useState<{ deadline: number; playerId: number } | null>(null);
+  const [zoomLink, setZoomLink] = useState<string | null>(null);
+  const [pauseVotes, setPauseVotes] = useState<Record<number, boolean | null>>({});
+  const [pauseInitiator, setPauseInitiator] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [retiredPlayers, setRetiredPlayers] = useState<Set<number>>(new Set());
   const [isAdmin, setIsAdmin] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -159,14 +177,33 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
           setPlayerId(msg.playerId);
           setPlayers(msg.players);
           setMaxPlayers(msg.maxPlayers);
+          setZoomLink(msg.zoomLink || null);
           setError(null);
           break;
         case "ROOM_JOINED":
           setRoomCode(msg.roomCode);
           setPlayerId(msg.playerId);
           setPlayers(msg.players);
+          setZoomLink(msg.zoomLink || null);
           setObserving(false);
           setError(null);
+          // Restore active vote states on rejoin (bundled atomically)
+          if (msg.rejoinState) {
+            if (msg.rejoinState.endGameVotes) {
+              setEndGameVotes(msg.rejoinState.endGameVotes);
+              setEndGameInitiator(msg.rejoinState.endGameInitiator ?? null);
+            }
+            if (msg.rejoinState.stepsVote) {
+              setStepsVote(msg.rejoinState.stepsVote);
+            }
+            if (msg.rejoinState.mapVotes) {
+              setMapVotes(msg.rejoinState.mapVotes);
+            }
+            if (msg.rejoinState.pauseVotes) {
+              setPauseVotes(msg.rejoinState.pauseVotes as Record<number, boolean | null>);
+              setPauseInitiator((msg.rejoinState.pauseInitiator as string) ?? null);
+            }
+          }
           break;
         case "ROOM_LIST":
           setRoomList(msg.rooms);
@@ -185,6 +222,26 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
           break;
         case "STEPS_VOTE_CANCELLED":
           setStepsVote(null);
+          break;
+        case "MOVE_TIMER":
+          setMoveTimer({ deadline: msg.deadline, playerId: msg.playerId });
+          setPaused(false);
+          break;
+        case "PAUSE_VOTES":
+          setPauseVotes(msg.votes);
+          setPauseInitiator(msg.initiator);
+          break;
+        case "RETIRED_PLAYERS":
+          setRetiredPlayers(new Set(msg.playerIds));
+          break;
+        case "PAUSE_CANCELLED":
+          // If votes were active and now cleared, pause was either accepted or rejected
+          if (Object.keys(pauseVotes).length > 0) {
+            const allAccepted = Object.values(pauseVotes).every((v) => v === true);
+            if (allAccepted) setPaused(true);
+          }
+          setPauseVotes({});
+          setPauseInitiator(null);
           break;
         case "END_GAME_VOTES":
           setEndGameVotes(msg.votes);
@@ -207,9 +264,22 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
           break;
         case "STATE_UPDATE":
           setGameState(msg.state);
+          // Clear move timer when state changes (server will send new one if needed)
+          if (msg.state.phase !== "move") setMoveTimer(null);
           break;
         case "ERROR":
-          setError(msg.message);
+          if (msg.message === "GAME_DELETED") {
+            // Reset game state — triggers redirect to home
+            setRoomCode(null);
+            setPlayerId(null);
+            setPlayers([]);
+            setObserving(false);
+            setGameState(EMPTY_STATE);
+            setError("Game was deleted by admin");
+            identityRef.current = null;
+          } else {
+            setError(msg.message);
+          }
           break;
       }
     };
@@ -237,6 +307,8 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(msg));
+    } else {
+      console.warn("WebSocket not open, dropping message:", (msg as any).type);
     }
   }, []);
 
@@ -256,8 +328,8 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
   );
 
   const createRoom = useCallback(
-    (maxPlayers: number, starCount: number, totalSteps: number, doublePayCount: number, fogOfWar: boolean) => {
-      sendMsg({ type: "CREATE_ROOM", maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar });
+    (maxPlayers: number, starCount: number, totalSteps: number, doublePayCount: number, fogOfWar: boolean, moveTimeout: number, zoomLink?: string) => {
+      sendMsg({ type: "CREATE_ROOM", maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar, moveTimeout, zoomLink });
     },
     [sendMsg]
   );
@@ -324,6 +396,12 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     endGameVotes,
     endGameInitiator,
     stepsVote,
+    moveTimer,
+    zoomLink,
+    pauseVotes,
+    pauseInitiator,
+    paused,
+    retiredPlayers,
     gameLogs,
     gameLogData,
     listGameLogs: useCallback(() => sendMsg({ type: "LIST_GAME_LOGS" }), [sendMsg]),
@@ -350,6 +428,32 @@ export function useMultiplayerGame(enabled: boolean): MultiplayerState {
     ),
     deleteRoom: useCallback(
       (roomCode: string) => sendMsg({ type: "ADMIN_DELETE_ROOM", roomCode }),
+      [sendMsg]
+    ),
+    endGame: useCallback(
+      (roomCode: string) => sendMsg({ type: "ADMIN_END_GAME", roomCode }),
+      [sendMsg]
+    ),
+    sendLeaderboardWhatsApp: useCallback(
+      () => sendMsg({ type: "SEND_LEADERBOARD_WHATSAPP" }),
+      [sendMsg]
+    ),
+    sendGameResultsWhatsApp: useCallback(
+      (state?: import("../types/game").GameState) =>
+        sendMsg({ type: "SEND_GAME_RESULTS_WHATSAPP", ...(state ? { state } : {}) }),
+      [sendMsg]
+    ),
+    sendBoardWhatsApp: useCallback(
+      (state?: import("../types/game").GameState) =>
+        sendMsg({ type: "SEND_BOARD_WHATSAPP", ...(state ? { state } : {}) }),
+      [sendMsg]
+    ),
+    retire: useCallback(
+      () => sendMsg({ type: "RETIRE" }),
+      [sendMsg]
+    ),
+    votePause: useCallback(
+      (accept: boolean) => sendMsg({ type: "PAUSE_VOTE", accept }),
       [sendMsg]
     ),
     createRoom,

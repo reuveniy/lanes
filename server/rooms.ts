@@ -7,6 +7,7 @@ export interface PlayerConnection {
   name: string;
   email: string;
   playerId: number;
+  retired: boolean;
 }
 
 export interface Room {
@@ -19,6 +20,8 @@ export interface Room {
   totalSteps: number;
   doublePayCount: number;
   fogOfWar: boolean;
+  moveTimeout: number; // seconds, 0 = no timeout
+  zoomLink: string;
   started: boolean;
   lastActivity: number;
 }
@@ -44,12 +47,14 @@ export function createRoom(
   starCount: number,
   totalSteps: number,
   doublePayCount: number,
-  fogOfWar: boolean
+  fogOfWar: boolean,
+  moveTimeout: number,
+  zoomLink: string
 ): Room {
   const code = generateCode();
   const room: Room = {
     code,
-    players: [{ ws, name: playerName, email, playerId: 0 }],
+    players: [{ ws, name: playerName, email, playerId: 0, retired: false }],
     observers: new Set(),
     hostId: 0,
     maxPlayers: Math.min(6, Math.max(2, maxPlayers)),
@@ -57,6 +62,8 @@ export function createRoom(
     totalSteps,
     doublePayCount,
     fogOfWar,
+    moveTimeout: Math.min(300, Math.max(0, moveTimeout)),
+    zoomLink,
     started: false,
     lastActivity: Date.now(),
   };
@@ -73,13 +80,14 @@ export function joinRoom(
   const room = rooms.get(code.toUpperCase());
   if (!room) return null;
 
-  // Check if reconnecting (same email, disconnected)
+  // Check if player already exists in this room (same email)
   const existing = room.players.find(
-    (p) => p.email.toLowerCase() === email.toLowerCase() && p.ws === null
+    (p) => p.email.toLowerCase() === email.toLowerCase()
   );
   if (existing) {
     existing.ws = ws;
     existing.name = playerName; // update display name in case it changed
+    existing.retired = false; // clear retired on rejoin
     room.lastActivity = Date.now();
     return { room, playerId: existing.playerId };
   }
@@ -88,7 +96,7 @@ export function joinRoom(
   if (room.players.length >= (room.maxPlayers || 6)) return null;
 
   const playerId = room.players.length;
-  room.players.push({ ws, name: playerName, email, playerId });
+  room.players.push({ ws, name: playerName, email, playerId, retired: false });
   room.lastActivity = Date.now();
   return { room, playerId };
 }
@@ -149,11 +157,13 @@ export function listRooms(): import("./protocol").RoomInfo[] {
     result.push({
       code: room.code,
       players: room.players.map((p) => p.name),
+      playerEmails: room.players.map((p) => p.email),
       maxPlayers: room.maxPlayers,
       started: room.started,
       currentStep: 0,
       totalSteps: 0,
       phase: room.started ? "playing" : "lobby",
+      zoomLink: room.zoomLink || undefined,
     });
   }
   return result;
@@ -171,13 +181,15 @@ export function serializeRooms(): Record<string, PersistedRoom> {
   for (const [code, room] of rooms) {
     result[code] = {
       code: room.code,
-      players: room.players.map((p) => ({ name: p.name, email: p.email, playerId: p.playerId })),
+      players: room.players.map((p) => ({ name: p.name, email: p.email, playerId: p.playerId, retired: p.retired })),
       hostId: room.hostId,
       maxPlayers: room.maxPlayers,
       starCount: room.starCount,
       totalSteps: room.totalSteps,
       doublePayCount: room.doublePayCount,
       fogOfWar: room.fogOfWar,
+      moveTimeout: room.moveTimeout,
+      zoomLink: room.zoomLink,
       started: room.started,
       lastActivity: room.lastActivity,
     };
@@ -195,6 +207,7 @@ export function restoreRooms(persisted: Record<string, PersistedRoom>): void {
         name: p.name,
         email: typeof p.email === "string" ? p.email : "",
         playerId: p.playerId,
+        retired: p.retired || false,
       })),
       observers: new Set(),
       hostId: data.hostId,
@@ -203,6 +216,8 @@ export function restoreRooms(persisted: Record<string, PersistedRoom>): void {
       totalSteps: data.totalSteps || 180,
       doublePayCount: data.doublePayCount || 10,
       fogOfWar: data.fogOfWar || false,
+      moveTimeout: data.moveTimeout || 0,
+      zoomLink: data.zoomLink || "",
       started: data.started,
       lastActivity: data.lastActivity,
     });

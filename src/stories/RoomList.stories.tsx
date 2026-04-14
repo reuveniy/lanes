@@ -32,9 +32,21 @@ export const WithGames: Story = {
   args: {
     ...baseArgs,
     rooms: [
-      { code: "A3X7", players: ["Alice", "Bob"], maxPlayers: 4, started: true, currentStep: 45, totalSteps: 180, phase: "move" },
-      { code: "K9F2", players: ["Carol"], maxPlayers: 4, started: false, currentStep: 0, totalSteps: 0, phase: "lobby" },
-      { code: "M2P5", players: ["Dave", "Eve"], maxPlayers: 2, started: true, currentStep: 10, totalSteps: 180, phase: "mapSelect" },
+      { code: "A3X7", players: ["Alice", "Bob"], playerEmails: ["alice@test.com", "bob@test.com"], maxPlayers: 4, started: true, currentStep: 45, totalSteps: 180, phase: "move", zoomLink: "https://zoom.us/j/1234567890" },
+      { code: "K9F2", players: ["Carol"], playerEmails: ["carol@test.com"], maxPlayers: 4, started: false, currentStep: 0, totalSteps: 0, phase: "lobby" },
+      { code: "M2P5", players: ["Dave", "Eve"], playerEmails: ["dave@test.com", "eve@test.com"], maxPlayers: 2, started: true, currentStep: 10, totalSteps: 180, phase: "mapSelect", zoomLink: "https://zoom.us/j/9876543210" },
+    ],
+  },
+};
+
+export const WithZoomAndGameOver: Story = {
+  name: "Zoom + Game Over",
+  args: {
+    ...baseArgs,
+    rooms: [
+      { code: "A3X7", players: ["Alice", "Bob"], playerEmails: ["alice@test.com", "bob@test.com"], maxPlayers: 4, started: true, currentStep: 180, totalSteps: 180, phase: "gameOver", zoomLink: "https://zoom.us/j/1234567890" },
+      { code: "K9F2", players: ["Carol", "Dave"], playerEmails: ["carol@test.com", "dave@test.com"], maxPlayers: 4, started: true, currentStep: 90, totalSteps: 180, phase: "move", zoomLink: "https://zoom.us/j/5555555555" },
+      { code: "M2P5", players: ["Eve"], playerEmails: ["eve@test.com"], maxPlayers: 4, started: false, currentStep: 0, totalSteps: 0, phase: "lobby" },
     ],
   },
 };
@@ -62,9 +74,10 @@ export const AdminView: Story = {
     ...baseArgs,
     isAdmin: true,
     onDeleteRoom: fn(),
+    onEndGame: fn(),
     rooms: [
-      { code: "A3X7", players: ["Alice", "Bob"], maxPlayers: 4, started: true, currentStep: 45, totalSteps: 180, phase: "move" },
-      { code: "K9F2", players: ["Carol", "Dave"], maxPlayers: 4, started: false, currentStep: 0, totalSteps: 0, phase: "lobby" },
+      { code: "A3X7", players: ["Alice", "Bob"], playerEmails: ["alice@test.com", "bob@test.com"], maxPlayers: 4, started: true, currentStep: 45, totalSteps: 180, phase: "move", zoomLink: "https://zoom.us/j/1234567890" },
+      { code: "K9F2", players: ["Carol", "Dave"], playerEmails: ["carol@test.com", "dave@test.com"], maxPlayers: 4, started: false, currentStep: 0, totalSteps: 0, phase: "lobby" },
     ],
   },
 };
@@ -76,7 +89,8 @@ export const NotAuthenticated: Story = {
     authenticated: false,
     userEmail: null,
     rooms: [
-      { code: "A3X7", players: ["Alice", "Bob"], maxPlayers: 4, started: true, currentStep: 45, totalSteps: 180, phase: "move" },
+      { code: "A3X7", players: ["Alice", "Bob"], playerEmails: ["alice@test.com", "bob@test.com"], maxPlayers: 4, started: true, currentStep: 45, totalSteps: 180, phase: "move", zoomLink: "https://zoom.us/j/1234567890" },
+      { code: "K9F2", players: ["Carol"], playerEmails: ["carol@test.com"], maxPlayers: 4, started: true, currentStep: 100, totalSteps: 180, phase: "move" },
     ],
   },
 };

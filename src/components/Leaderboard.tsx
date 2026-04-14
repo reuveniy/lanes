@@ -7,6 +7,7 @@ interface LeaderboardProps {
   isAdmin?: boolean;
   onClearLeaderboard?: () => void;
   onRemoveUser?: (email: string) => void;
+  onSendWhatsApp?: () => void;
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({
@@ -14,6 +15,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
   isAdmin,
   onClearLeaderboard,
   onRemoveUser,
+  onSendWhatsApp,
 }) => {
   const isMobile = useMobile();
   const adminBtnStyle: React.CSSProperties = {
@@ -58,14 +60,28 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
         >
           Leaderboard
         </span>
-        {isAdmin && onClearLeaderboard && (
-          <button
-            onClick={onClearLeaderboard}
-            style={adminBtnStyle}
-          >
-            Clear All
-          </button>
-        )}
+        <span style={{ display: "flex", gap: 4 }}>
+          {onSendWhatsApp && entries.length > 0 && (
+            <button
+              onClick={() => {
+                console.log("WhatsApp button clicked — sending leaderboard");
+                onSendWhatsApp();
+              }}
+              style={{ ...adminBtnStyle, color: "#22c55e", border: "1px solid #22c55e" }}
+              title="Send leaderboard to WhatsApp group"
+            >
+              WhatsApp
+            </button>
+          )}
+          {isAdmin && onClearLeaderboard && (
+            <button
+              onClick={onClearLeaderboard}
+              style={adminBtnStyle}
+            >
+              Clear All
+            </button>
+          )}
+        </span>
       </div>
 
       {entries.length === 0 ? (
@@ -146,6 +162,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
           </tbody>
         </table>
       )}
+
     </div>
   );
 };

@@ -18,6 +18,7 @@ import { GameOverScreen } from "./GameOverScreen";
 import { MapSelectScreen } from "./MapSelectScreen";
 import { EndGameVotePanel } from "./EndGameVotePanel";
 import { ExitButton } from "./ExitButton";
+import { RetireModal } from "./RetireModal";
 
 interface GameViewProps {
   state?: GameState;
@@ -32,6 +33,16 @@ interface GameViewProps {
   onEndGameVote?: (accept: boolean) => void;
   stepsVote?: { newSteps: number; initiator: string; votes: Record<number, boolean | null> } | null;
   onStepsVote?: (newSteps: number | null, accept?: boolean) => void;
+  moveTimer?: { deadline: number; playerId: number } | null;
+  onShareWhatsApp?: (state: GameState) => void;
+  onShareBoardWhatsApp?: (state: GameState) => void;
+  onRetire?: () => void;
+  zoomLink?: string | null;
+  pauseVotes?: Record<number, boolean | null>;
+  pauseInitiator?: string | null;
+  paused?: boolean;
+  onPauseVote?: (accept: boolean) => void;
+  retiredPlayers?: Set<number>;
   onExit?: () => void;
   onSaveGameLog?: (log: GameLog) => void;
 }
@@ -49,6 +60,16 @@ export const GameView: React.FC<GameViewProps> = ({
   onEndGameVote,
   stepsVote,
   onStepsVote,
+  moveTimer,
+  onShareWhatsApp,
+  onShareBoardWhatsApp,
+  onRetire,
+  zoomLink,
+  pauseVotes,
+  pauseInitiator,
+  paused: isPaused,
+  onPauseVote,
+  retiredPlayers,
   onExit,
   onSaveGameLog,
 }) => {
@@ -61,6 +82,7 @@ export const GameView: React.FC<GameViewProps> = ({
   const [mobileTab, setMobileTab] = useState<"map" | "status" | "holdings">("map");
   const [soundOn, setSoundOn] = useState(!isMuted());
   const [showStepsDialog, setShowStepsDialog] = useState(false);
+  const [showRetireModal, setShowRetireModal] = useState(false);
   const [newStepsInput, setNewStepsInput] = useState("");
 
   const localLogRef = useRef<GameLogEntry[]>([]);
@@ -105,26 +127,25 @@ export const GameView: React.FC<GameViewProps> = ({
 
   // Accumulate messages across turns
   const seenRef = useRef(0);
-  const prevRef = useRef(state.messages);
   useEffect(() => {
     const msgs = state.messages;
-    if (msgs === prevRef.current || msgs.length === 0) {
-      prevRef.current = msgs;
+    if (msgs.length === 0) {
+      seenRef.current = 0;
       return;
     }
 
-    // Determine which messages are new
-    const newMsgs = msgs.length > seenRef.current
-      ? msgs.slice(seenRef.current)  // array grew — take new tail
-      : msgs;                         // array was reset — take all
+    // Only process genuinely new messages (array grew)
+    if (msgs.length <= seenRef.current) return;
 
+    const newMsgs = msgs.slice(seenRef.current);
     setMessageLog((prev) => [...prev, ...newMsgs]);
+
+    // Play only the first alarm from the new batch
     for (const msg of newMsgs) {
       if (msg.alarm) { playAlarm(msg.alarm); break; }
     }
 
     seenRef.current = msgs.length;
-    prevRef.current = msgs;
   }, [state.messages]);
 
   const handleStart = useCallback(
@@ -204,9 +225,10 @@ export const GameView: React.FC<GameViewProps> = ({
     return (
       <GameOverScreen
         state={state}
-        onPlayAgain={() => {
+        onPlayAgain={!isMultiplayer ? () => {
           if (state.config) dispatch({ type: "INIT_GAME", config: state.config });
-        }}
+        } : undefined}
+        onShareWhatsApp={onShareWhatsApp ? () => onShareWhatsApp(state) : undefined}
         onExit={onExit}
       />
     );
@@ -248,7 +270,7 @@ export const GameView: React.FC<GameViewProps> = ({
           minHeight: isMobile ? 20 : 24,
         }}
       >
-        {/* Left: sound toggle */}
+        {/* Left: sound toggle + WhatsApp share */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "0 0 auto" }}>
           <button
             onClick={() => { setSoundOn(!soundOn); setMuted(soundOn); }}
@@ -265,6 +287,30 @@ export const GameView: React.FC<GameViewProps> = ({
               )}
             </svg>
           </button>
+          {onShareBoardWhatsApp && (
+            <button
+              onClick={() => onShareBoardWhatsApp(state)}
+              title="Share board on WhatsApp"
+              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1 }}
+            >
+              <svg width={isMobile ? 16 : 20} height={isMobile ? 16 : 20} viewBox="0 0 24 24" fill="#22c55e">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+              </svg>
+            </button>
+          )}
+          {zoomLink && (
+            <a
+              href={zoomLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Join Zoom session"
+              style={{ display: "inline-flex", alignItems: "center" }}
+            >
+              <svg width={isMobile ? 16 : 20} height={isMobile ? 16 : 20} viewBox="0 0 24 24" fill="#2d8cff">
+                <path d="M4 3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3l4 3V6l-4 3V5a2 2 0 0 0-2-2H4zm0 2h10v10H4V5z"/>
+              </svg>
+            </a>
+          )}
         </div>
 
         {/* Center: title */}
@@ -305,6 +351,45 @@ export const GameView: React.FC<GameViewProps> = ({
             );
           })()}
 
+          {isMultiplayer && onPauseVote && (
+            <button
+              onClick={() => onPauseVote(true)}
+              disabled={!!isPaused}
+              title={isPaused ? "Game is paused" : "Propose pausing the timer"}
+              style={{
+                fontFamily: "'Courier New', monospace",
+                fontSize: isMobile ? 8 : 10,
+                background: isPaused ? "#1e3a5f" : "#1f2937",
+                color: isPaused ? "#60a5fa" : "#6b7280",
+                border: isPaused ? "1px solid #60a5fa" : "1px solid #374151",
+                borderRadius: 3,
+                padding: isMobile ? "2px 4px" : "2px 6px",
+                cursor: isPaused ? "default" : "pointer",
+              }}
+            >
+              {isPaused ? "Paused" : "Pause"}
+            </button>
+          )}
+
+          {isMultiplayer && onRetire && (
+            <button
+              onClick={() => setShowRetireModal(true)}
+              title="Retire — AI will play for you"
+              style={{
+                fontFamily: "'Courier New', monospace",
+                fontSize: isMobile ? 8 : 10,
+                background: "#1f2937",
+                color: "#f59e0b",
+                border: "1px solid #374151",
+                borderRadius: 3,
+                padding: isMobile ? "2px 4px" : "2px 6px",
+                cursor: "pointer",
+              }}
+            >
+              Retire
+            </button>
+          )}
+
           {onExit && <ExitButton onClick={onExit} />}
 
           {roomCode && (
@@ -330,8 +415,13 @@ export const GameView: React.FC<GameViewProps> = ({
         </div>
       </div>
 
-      {/* Turn indicator for multiplayer */}
-      {isMultiplayer && !isMyTurn && (
+      {/* Move timer countdown */}
+      {isMultiplayer && moveTimer && moveTimer.playerId === state.currentPlayer && state.phase === "move" && (
+        <MoveTimerDisplay deadline={moveTimer.deadline} isMyTurn={isMyTurn} playerName={state.players[state.currentPlayer]?.name ?? ""} playerColor={state.players[state.currentPlayer]?.color ?? "#9ca3af"} />
+      )}
+
+      {/* Turn indicator for multiplayer (only if no timer shown) */}
+      {isMultiplayer && !isMyTurn && !(moveTimer && moveTimer.playerId === state.currentPlayer && state.phase === "move") && (
         <div
           style={{
             textAlign: "center",
@@ -432,7 +522,7 @@ export const GameView: React.FC<GameViewProps> = ({
         const statusBlock = (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} onClick={() => { setShowStepsDialog(true); setNewStepsInput(String(state.totalSteps)); }} />
-            <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} />
+            <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} />
             <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
           </div>
         );
@@ -464,7 +554,7 @@ export const GameView: React.FC<GameViewProps> = ({
               {mapBlock}
               {controlsBlock}
               <MessageArea messages={messageLog} />
-              <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} />
+              <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} />
               <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
               {holdingsBlock}
             </div>
@@ -485,7 +575,7 @@ export const GameView: React.FC<GameViewProps> = ({
               </div>
               <div style={{ minWidth: isLandscape ? 180 : 220, display: "flex", flexDirection: "column", gap: g, overflow: "auto" }}>
                 <StepCounter currentStep={state.currentStep} totalSteps={state.totalSteps} onClick={() => { setShowStepsDialog(true); setNewStepsInput(String(state.totalSteps)); }} />
-                <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} />
+                <NetWorthPanel players={state.players} currentPlayer={state.currentPlayer} retiredPlayers={retiredPlayers} />
                 <CashDisplay player={currentPlayerData} bankBonus={state.bankBonus} />
                 {holdingsBlock}
               </div>
@@ -507,6 +597,16 @@ export const GameView: React.FC<GameViewProps> = ({
         );
       })()}
 
+      {/* Retire modal */}
+      {showRetireModal && onRetire && (
+        <RetireModal
+          playerName={state.players[playerId ?? 0]?.name ?? "Player"}
+          playerColor={state.players[playerId ?? 0]?.color ?? "#e5e7eb"}
+          onConfirm={() => { setShowRetireModal(false); onRetire(); }}
+          onCancel={() => setShowRetireModal(false)}
+        />
+      )}
+
       {/* End Game vote popup overlay */}
       {isMultiplayer && endGameInitiator && endGameVotes && Object.keys(endGameVotes).length > 0 && onEndGameVote && (
         <EndGameVotePanel
@@ -517,6 +617,38 @@ export const GameView: React.FC<GameViewProps> = ({
           onAccept={() => onEndGameVote(true)}
           onReject={() => onEndGameVote(false)}
         />
+      )}
+
+      {/* Pause vote popup overlay */}
+      {isMultiplayer && pauseInitiator && pauseVotes && Object.keys(pauseVotes).length > 0 && onPauseVote && (
+        <div role="dialog" aria-modal="true" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 }}>
+          <div style={{ fontFamily: "'Courier New', monospace", background: "#111827", border: "1px solid #374151", borderRadius: 8, padding: isMobile ? 16 : 24, minWidth: isMobile ? 260 : 320, maxWidth: "90vw", textAlign: "center" }}>
+            <div style={{ color: "#60a5fa", fontSize: isMobile ? 13 : 16, fontWeight: "bold", marginBottom: 12 }}>Pause Game?</div>
+            <div style={{ color: "#d1d5db", fontSize: isMobile ? 11 : 13, marginBottom: 16 }}>
+              <span style={{ color: "#fbbf24" }}>{pauseInitiator}</span> wants to pause the timer.<br />All players must agree.
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              {state.players.map((p, i) => {
+                const vote = pauseVotes[i];
+                const isInit = p.name === pauseInitiator;
+                return (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 12px", fontSize: isMobile ? 11 : 13, color: p.color, background: isInit ? "rgba(96, 165, 250, 0.1)" : "transparent", borderRadius: 4 }}>
+                    <span>{isInit && <span style={{ color: "#60a5fa", marginRight: 4 }}>||</span>}{p.name}</span>
+                    <span style={{ color: vote === true ? "#22c55e" : "#6b7280", fontWeight: vote === true ? "bold" : "normal" }}>{vote === true ? "✓ Agreed" : "Voting..."}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {pauseVotes[playerId ?? -1] === true ? (
+              <div style={{ color: "#9ca3af", fontSize: 12 }}>Waiting for other players...</div>
+            ) : (
+              <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+                <button onClick={() => onPauseVote(false)} style={{ fontFamily: "'Courier New', monospace", fontSize: isMobile ? 12 : 14, fontWeight: "bold", background: "#374151", color: "#e5e7eb", border: "none", borderRadius: 4, padding: "8px 24px", cursor: "pointer" }}>Continue</button>
+                <button onClick={() => onPauseVote(true)} style={{ fontFamily: "'Courier New', monospace", fontSize: isMobile ? 12 : 14, fontWeight: "bold", background: "#60a5fa", color: "#0a0a1a", border: "none", borderRadius: 4, padding: "8px 24px", cursor: "pointer" }}>Pause</button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Change Steps dialog */}
@@ -672,6 +804,60 @@ export const GameView: React.FC<GameViewProps> = ({
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+/** Countdown timer display for move timeout */
+export const MoveTimerDisplay: React.FC<{
+  deadline: number;
+  isMyTurn: boolean;
+  playerName: string;
+  playerColor: string;
+}> = ({ deadline, isMyTurn, playerName, playerColor }) => {
+  const [secondsLeft, setSecondsLeft] = useState(() => Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+
+  useEffect(() => {
+    const update = () => setSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [deadline]);
+
+  const minutes = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const timeStr = minutes > 0 ? `${minutes}:${secs.toString().padStart(2, "0")}` : `${secs}s`;
+  const isUrgent = secondsLeft <= 10;
+
+  return (
+    <div
+      style={{
+        textAlign: "center",
+        marginBottom: 8,
+        padding: "6px 12px",
+        background: isUrgent ? "#7f1d1d" : "#1f2937",
+        border: `1px solid ${isUrgent ? "#ef4444" : "#374151"}`,
+        borderRadius: 4,
+        fontSize: 13,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 8,
+      }}
+    >
+      <span style={{ color: playerColor }}>
+        {isMyTurn ? "Your turn" : `Waiting for ${playerName}`}
+      </span>
+      <span
+        style={{
+          color: isUrgent ? "#ef4444" : "#fbbf24",
+          fontWeight: "bold",
+          fontVariantNumeric: "tabular-nums",
+          animation: isUrgent ? "pulse 1s ease-in-out infinite" : undefined,
+        }}
+      >
+        {timeStr}
+      </span>
     </div>
   );
 };

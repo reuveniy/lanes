@@ -24,7 +24,7 @@ interface HomeScreenProps {
   onPlayLocal: () => void;
   onWatchDemo: () => void;
   onHelp: () => void;
-  onCreateRoom: (maxPlayers: number, starCount: number, totalSteps: number, doublePayCount: number, fogOfWar: boolean) => void;
+  onCreateRoom: (maxPlayers: number, starCount: number, totalSteps: number, doublePayCount: number, fogOfWar: boolean, moveTimeout: number, zoomLink?: string) => void;
   onJoinRoom: (code: string) => void;
   onObserveRoom: (code: string) => void;
   onAuthenticate: (idToken: string) => void;
@@ -33,7 +33,9 @@ interface HomeScreenProps {
   onClearLeaderboard?: () => void;
   onRemoveLeaderboardUser?: (email: string) => void;
   onDeleteRoom?: (roomCode: string) => void;
+  onEndGame?: (roomCode: string) => void;
   onDeleteGameLog?: (id: string) => void;
+  onSendLeaderboardWhatsApp?: () => void;
   gameLogs: GameLogSummary[];
   onRefreshLogs: () => void;
   onReplay: (id: string) => void;
@@ -59,7 +61,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onClearLeaderboard,
   onRemoveLeaderboardUser,
   onDeleteRoom,
+  onEndGame,
   onDeleteGameLog,
+  onSendLeaderboardWhatsApp,
   gameLogs,
   onRefreshLogs,
   onReplay,
@@ -71,6 +75,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [totalSteps, setTotalSteps] = useState(180);
   const [doublePayCount, setDoublePayCount] = useState(10);
   const [fogOfWar, setFogOfWar] = useState(false);
+  const [moveTimeout, setMoveTimeout] = useState(60);
+  const [zoomLink, setZoomLink] = useState("");
 
   const btnStyle = (
     bg: string,
@@ -144,6 +150,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             onObserve={onObserveRoom}
             isAdmin={isAdmin}
             onDeleteRoom={onDeleteRoom}
+            onEndGame={onEndGame}
           />
           <PlayedGames
             logs={gameLogs}
@@ -281,6 +288,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <input id="home-dp" type="range" min={2} max={16} value={doublePayCount}
                       onChange={(e) => setDoublePayCount(Number(e.target.value))} style={{ width: "100%" }} />
                   </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <label htmlFor="home-timeout" style={{ color: "#9ca3af", fontSize: 10, marginBottom: 2, display: "block" }}>Move Timeout ({moveTimeout === 0 ? "OFF" : `${moveTimeout}s`})</label>
+                    <input id="home-timeout" type="range" min={0} max={300} step={5} value={moveTimeout}
+                      onChange={(e) => setMoveTimeout(Number(e.target.value))} style={{ width: "100%" }} />
+                  </div>
+                  <div style={{ marginBottom: 6 }}>
+                    <label htmlFor="home-zoom" style={{ color: "#9ca3af", fontSize: 10, marginBottom: 2, display: "block" }}>Zoom Link (optional)</label>
+                    <input id="home-zoom" type="text" value={zoomLink} placeholder="https://zoom.us/j/..."
+                      onChange={(e) => setZoomLink(e.target.value)}
+                      style={{
+                        width: "100%", boxSizing: "border-box",
+                        fontFamily: "'Courier New', monospace", fontSize: 10,
+                        background: "#1f2937", color: "#e5e7eb", border: "1px solid #374151",
+                        borderRadius: 3, padding: "4px 6px",
+                      }} />
+                  </div>
                   <div
                     role="switch"
                     aria-checked={fogOfWar}
@@ -326,7 +349,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   <div style={{ display: "flex", gap: 6 }}>
                     <button
                       onClick={() => {
-                        onCreateRoom(maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar);
+                        onCreateRoom(maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar, moveTimeout, zoomLink || undefined);
                         setShowCreate(false);
                       }}
                       style={{ ...btnStyle("#fbbf24", "#0a0a1a"), fontSize: 12, padding: "8px 0" }}
@@ -368,6 +391,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             isAdmin={isAdmin}
             onClearLeaderboard={onClearLeaderboard}
             onRemoveUser={onRemoveLeaderboardUser}
+            onSendWhatsApp={onSendLeaderboardWhatsApp}
           />
         </div>
       </div>

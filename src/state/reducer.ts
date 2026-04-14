@@ -89,8 +89,11 @@ function processPostPlacement(state: GameState, row: number, col: number): GameS
   // Freeze trap check
   const frozen = checkFreezeTrap(s, row, col);
   if (frozen) {
+    const frozenPlayers = s.players.map((pl) => ({ ...pl }));
+    frozenPlayers[p].freezeCount++;
     s = {
       ...s,
+      players: frozenPlayers,
       frozen: true,
       rngSeed: rng.state(),
       messages: [

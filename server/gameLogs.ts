@@ -28,7 +28,7 @@ export interface GameLogSummary {
 
 export function listGameLogs(): GameLogSummary[] {
   ensureDir();
-  const files = fs.readdirSync(LOGS_DIR).filter((f) => f.endsWith(".json"));
+  const files = fs.readdirSync(LOGS_DIR).filter((f) => f.endsWith(".json") && !f.startsWith("inprogress-"));
   const summaries: GameLogSummary[] = [];
 
   for (const file of files) {

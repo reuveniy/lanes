@@ -35,14 +35,65 @@ export const CashDisplay: React.FC<CashDisplayProps> = ({
       >
         {player.name}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ color: "#9ca3af" }}>Cash</span>
+      <div style={{ borderTop: "1px solid #374151", marginBottom: m ? 4 : 6 }} />
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+        <span style={{ color: "#34d399" }}>Cash</span>
         <span style={{ color: "#34d399" }}>${player.cash.toLocaleString()}</span>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ color: "#9ca3af" }}>Double Pays</span>
-        <span>{player.doublePays}</span>
-      </div>
+      {(player.doublePays > 0 || player.bonusCount > 0 || player.specialHelpCount > 0 || player.totalBonusReceived > 0) && (
+        <div style={{ borderTop: "1px solid #374151", marginTop: m ? 4 : 6, paddingTop: m ? 4 : 6 }} />
+      )}
+      {player.doublePays > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#34d399" }}>Double Pays</span>
+          <span style={{ color: "#34d399" }}>{player.doublePays}</span>
+        </div>
+      )}
+      {player.bonusCount > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#34d399" }}>Bonuses</span>
+          <span style={{ color: "#34d399" }}>{player.bonusCount}</span>
+        </div>
+      )}
+      {player.specialHelpCount > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#34d399" }}>Special Help</span>
+          <span style={{ color: "#34d399" }}>{player.specialHelpCount}</span>
+        </div>
+      )}
+      {player.totalBonusReceived > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#34d399" }}>Total Bonus</span>
+          <span style={{ color: "#34d399" }}>${player.totalBonusReceived.toLocaleString()}</span>
+        </div>
+      )}
+      {(player.freezeCount > 0 || player.trapCount > 0 || player.halfTrapCount > 0 || player.totalTrapLost > 0) && (
+        <div style={{ borderTop: "1px solid #374151", marginTop: m ? 4 : 6, paddingTop: m ? 4 : 6 }} />
+      )}
+      {player.freezeCount > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#ef4444" }}>Freezes</span>
+          <span style={{ color: "#ef4444" }}>{player.freezeCount}</span>
+        </div>
+      )}
+      {player.trapCount > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#ef4444" }}>Traps</span>
+          <span style={{ color: "#ef4444" }}>{player.trapCount}</span>
+        </div>
+      )}
+      {player.halfTrapCount > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#ef4444" }}>Half Traps</span>
+          <span style={{ color: "#ef4444" }}>{player.halfTrapCount}</span>
+        </div>
+      )}
+      {player.totalTrapLost > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+          <span style={{ color: "#ef4444" }}>Trap Losses</span>
+          <span style={{ color: "#ef4444" }}>${player.totalTrapLost.toLocaleString()}</span>
+        </div>
+      )}
       <div
         style={{
           borderTop: "1px solid #374151",
@@ -52,8 +103,8 @@ export const CashDisplay: React.FC<CashDisplayProps> = ({
           justifyContent: "space-between",
         }}
       >
-        <span style={{ color: "#9ca3af" }}>Bank Bonus</span>
-        <span style={{ color: "#fbbf24" }}>${bankBonus.toLocaleString()}</span>
+        <span style={{ color: "#f59e0b" }}>Bank Bonus</span>
+        <span style={{ color: "#f59e0b" }}>${bankBonus.toLocaleString()}</span>
       </div>
     </div>
   );

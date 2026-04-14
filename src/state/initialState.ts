@@ -26,6 +26,13 @@ export function createInitialState(config: GameConfig): GameState {
       color: PLAYER_COLORS[i],
       netWorth: 6000,
       doublePays: 0,
+      bonusCount: 0,
+      totalBonusReceived: 0,
+      freezeCount: 0,
+      trapCount: 0,
+      halfTrapCount: 0,
+      totalTrapLost: 0,
+      specialHelpCount: 0,
     }));
 
   const companies = Array.from({ length: 26 }, (_, i) =>

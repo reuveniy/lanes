@@ -15,6 +15,11 @@ function App() {
   const isOnline = screen !== "game-local";
   const mp = useMultiplayerGame(isOnline);
 
+  // Auto-redirect to home when game is deleted (roomCode was set then cleared)
+  if ((screen === "lobby" || screen === "observing") && !mp.roomCode && mp.error === "Game was deleted by admin") {
+    setScreen("home");
+  }
+
   // Auto-transition: lobby → game when server sends game state
   if (
     screen === "lobby" &&
@@ -35,6 +40,16 @@ function App() {
         onEndGameVote={mp.voteEndGame}
         stepsVote={mp.stepsVote}
         onStepsVote={mp.voteSteps}
+        moveTimer={mp.moveTimer}
+        zoomLink={mp.zoomLink}
+        pauseVotes={mp.pauseVotes}
+        pauseInitiator={mp.pauseInitiator}
+        paused={mp.paused}
+        onPauseVote={mp.votePause}
+        retiredPlayers={mp.retiredPlayers}
+        onShareWhatsApp={mp.sendGameResultsWhatsApp}
+        onShareBoardWhatsApp={mp.sendBoardWhatsApp}
+        onRetire={mp.retire}
         onExit={() => setScreen("home")}
       />
     );
@@ -54,6 +69,9 @@ function App() {
         playerId={-1}
         roomCode={mp.roomCode}
         connected={mp.connected}
+        zoomLink={mp.zoomLink}
+        onShareWhatsApp={mp.sendGameResultsWhatsApp}
+        onShareBoardWhatsApp={mp.sendBoardWhatsApp}
         onExit={() => setScreen("home")}
       />
     );
@@ -73,8 +91,8 @@ function App() {
           onPlayLocal={() => setScreen("game-local")}
           onWatchDemo={() => setScreen("demo")}
           onHelp={() => setScreen("help")}
-          onCreateRoom={(maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar) => {
-            mp.createRoom(maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar);
+          onCreateRoom={(maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar, moveTimeout, zoomLink) => {
+            mp.createRoom(maxPlayers, starCount, totalSteps, doublePayCount, fogOfWar, moveTimeout, zoomLink);
             setScreen("lobby");
           }}
           onJoinRoom={(code) => {
@@ -91,7 +109,9 @@ function App() {
           onClearLeaderboard={mp.clearLeaderboard}
           onRemoveLeaderboardUser={mp.removeLeaderboardUser}
           onDeleteRoom={mp.deleteRoom}
+          onEndGame={mp.endGame}
           onDeleteGameLog={mp.deleteGameLog}
+          onSendLeaderboardWhatsApp={mp.sendLeaderboardWhatsApp}
           gameLogs={mp.gameLogs}
           onRefreshLogs={mp.listGameLogs}
           onReplay={(id) => { mp.getGameLog(id); setScreen("replay"); }}
@@ -133,7 +153,7 @@ function App() {
       );
 
     case "game-local":
-      return <GameView onExit={() => setScreen("home")} onSaveGameLog={mp.saveGameLog} />;
+      return <GameView onExit={() => setScreen("home")} onSaveGameLog={mp.saveGameLog} onShareWhatsApp={mp.sendGameResultsWhatsApp} onShareBoardWhatsApp={mp.sendBoardWhatsApp} />;
 
     case "demo":
       return <DemoMode onExit={() => setScreen("home")} />;

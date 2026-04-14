@@ -26,7 +26,40 @@ import {
   restoreSessions,
 } from "./gameSession";
 import { loadState, saveState } from "./persist";
+import type { GameState } from "../src/types/game";
+import { gameReducer } from "../src/state/reducer";
 import { saveGameLog, listGameLogs, getGameLog, deleteGameLog } from "./gameLogs";
+import { sendWhatsAppImage, isGreenApiConfigured } from "./greenapi";
+import { renderLeaderboardImage } from "./leaderboardImage";
+import { renderGameOverImage } from "./gameOverImage";
+import { renderBoardSnapshot } from "./boardImage";
+
+/** Record game result, broadcast leaderboard to all clients, and send game over + leaderboard to WhatsApp */
+function recordAndBroadcastResult(playerEmails: string[], winnerEmail: string, gameState: GameState): void {
+  recordGameResult(playerEmails, winnerEmail);
+  const entries = getLeaderboard();
+  for (const client of wss.clients) {
+    send(client as WebSocket, { type: "LEADERBOARD", entries });
+  }
+  if (isGreenApiConfigured()) {
+    // Send game over image
+    console.log("WhatsApp: Auto-sending game over results");
+    const gameOverPng = renderGameOverImage(gameState);
+    const winnerName = gameState.winner !== null ? gameState.players[gameState.winner]?.name : null;
+    const caption = winnerName ? `Game Over — ${winnerName} Wins!` : "Game Over";
+    sendWhatsAppImage(gameOverPng, caption).catch((err) => {
+      console.error("WhatsApp: Auto-send game over failed —", err);
+    });
+    // Send updated leaderboard image
+    if (entries.length > 0) {
+      console.log("WhatsApp: Auto-sending leaderboard after game end");
+      const leaderboardPng = renderLeaderboardImage(entries);
+      sendWhatsAppImage(leaderboardPng, "Star Lanes Leaderboard").catch((err) => {
+        console.error("WhatsApp: Auto-send leaderboard failed —", err);
+      });
+    }
+  }
+}
 import { verifyGoogleToken, getClientId, type GoogleUser } from "./auth";
 import {
   loadLeaderboard,
@@ -110,6 +143,16 @@ if (persisted) {
   restoreSessions(persisted.sessions, getRoom);
   const roomCount = Object.keys(persisted.rooms).length;
   const sessionCount = Object.keys(persisted.sessions).length;
+  // Wire up auto-move callbacks and restart timers for restored sessions
+  for (const code of Object.keys(persisted.sessions)) {
+    const session = getSession(code);
+    if (session) {
+      setupAutoMoveCallback(session);
+      if (session.state.phase === "move") {
+        session.startMoveTimerIfNeeded();
+      }
+    }
+  }
   console.log(`Restored ${roomCount} rooms, ${sessionCount} game sessions`);
 }
 // Load leaderboard (async — merges local + remote)
@@ -120,6 +163,28 @@ function persistAll(): void {
     rooms: serializeRooms(),
     sessions: serializeSessions(),
   });
+}
+
+/** Wire up auto-move callback so timeout-triggered moves handle leaderboard/persistence */
+function setupAutoMoveCallback(session: ReturnType<typeof getSession>): void {
+  if (!session) return;
+  session.onAutoMoveComplete = () => {
+    const room = session.room;
+    if (session.state.phase === "gameOver" && session.state.winner !== null) {
+      const playerEmails = room.players.map((p) => p.email);
+      const winnerEmail = room.players[session.state.winner]?.email;
+      if (winnerEmail) {
+        recordAndBroadcastResult(playerEmails, winnerEmail, session.state);
+      }
+      deleteGameLog("inprogress-" + room.code);
+      const log = session.getGameLog(true);
+      if (log) saveGameLog(log);
+    } else {
+      const log = session.getGameLog();
+      if (log) saveGameLog(log);
+    }
+    persistAll();
+  };
 }
 
 // Track authenticated users per WebSocket
@@ -158,7 +223,7 @@ wss.on("connection", (ws: WebSocket) => {
     }
 
     // Validate required fields for messages that need them
-    const needsRoomCode = ["OBSERVE_ROOM", "JOIN_ROOM", "ADMIN_DELETE_ROOM"];
+    const needsRoomCode = ["OBSERVE_ROOM", "JOIN_ROOM", "ADMIN_DELETE_ROOM", "ADMIN_END_GAME"];
     if (needsRoomCode.includes(msg.type) && (!("roomCode" in msg) || typeof (msg as { roomCode?: unknown }).roomCode !== "string")) {
       send(ws, { type: "ERROR", message: "Missing roomCode" });
       return;
@@ -175,7 +240,7 @@ wss.on("connection", (ws: WebSocket) => {
       send(ws, { type: "ERROR", message: "Missing idToken" });
       return;
     }
-    const needsBool = ["MAP_VOTE", "END_GAME_VOTE"];
+    const needsBool = ["MAP_VOTE", "END_GAME_VOTE", "PAUSE_VOTE"];
     if (needsBool.includes(msg.type) && !("accept" in msg)) {
       send(ws, { type: "ERROR", message: "Missing accept field" });
       return;
@@ -315,6 +380,69 @@ wss.on("connection", (ws: WebSocket) => {
       return;
     }
 
+    // WhatsApp sharing doesn't require auth
+    if (msg.type === "SEND_LEADERBOARD_WHATSAPP") {
+      console.log("WhatsApp: Leaderboard share requested");
+      if (!isGreenApiConfigured()) {
+        send(ws, { type: "ERROR", message: "WhatsApp not configured" });
+        return;
+      }
+      const entries = getLeaderboard();
+      if (entries.length === 0) {
+        send(ws, { type: "ERROR", message: "Leaderboard is empty" });
+        return;
+      }
+      const pngBuffer = renderLeaderboardImage(entries);
+      sendWhatsAppImage(pngBuffer, "Star Lanes Leaderboard").then((ok) => {
+        if (!ok) send(ws, { type: "ERROR", message: "Failed to send WhatsApp message" });
+      });
+      return;
+    }
+
+    if (msg.type === "SEND_GAME_RESULTS_WHATSAPP") {
+      console.log("WhatsApp: Game results share requested", msg.state ? "(with state)" : "(no state)");
+      if (!isGreenApiConfigured()) {
+        send(ws, { type: "ERROR", message: "WhatsApp not configured" });
+        return;
+      }
+      let resultState: GameState | undefined = msg.state;
+      if (!resultState) {
+        const roomCode = wsRoomMap.get(ws);
+        if (roomCode) { const s = getSession(roomCode); if (s) resultState = s.state; }
+      }
+      if (!resultState || resultState.phase !== "gameOver") {
+        send(ws, { type: "ERROR", message: "Game not over" });
+        return;
+      }
+      const resultPng = renderGameOverImage(resultState);
+      const winnerName = resultState.winner !== null ? resultState.players[resultState.winner]?.name : null;
+      const caption = winnerName ? `Game Over — ${winnerName} Wins!` : "Game Over";
+      sendWhatsAppImage(resultPng, caption).then((ok) => {
+        if (!ok) send(ws, { type: "ERROR", message: "Failed to send WhatsApp message" });
+      });
+      return;
+    }
+
+    if (msg.type === "SEND_BOARD_WHATSAPP") {
+      console.log("WhatsApp: Board snapshot share requested", msg.state ? "(with state)" : "(from session)");
+      if (!isGreenApiConfigured()) {
+        send(ws, { type: "ERROR", message: "WhatsApp not configured" });
+        return;
+      }
+      let boardState: GameState | undefined = msg.state;
+      if (!boardState) {
+        const roomCode = wsRoomMap.get(ws);
+        if (roomCode) { const s = getSession(roomCode); if (s) boardState = s.state; }
+      }
+      if (!boardState) { send(ws, { type: "ERROR", message: "No game state available" }); return; }
+      const boardPng = renderBoardSnapshot(boardState);
+      const caption = `Star Lanes — Step ${boardState.currentStep}/${boardState.totalSteps}`;
+      sendWhatsAppImage(boardPng, caption).then((ok) => {
+        if (!ok) send(ws, { type: "ERROR", message: "Failed to send WhatsApp message" });
+      });
+      return;
+    }
+
     // All other actions require auth
     const user = requireAuth(ws);
     if (!user) return;
@@ -325,13 +453,17 @@ wss.on("connection", (ws: WebSocket) => {
         const stars = Math.min(180, Math.max(100, msg.starCount || 150));
         const steps = Math.min(360, Math.max(80, msg.totalSteps || 180));
         const dpCount = Math.min(16, Math.max(2, msg.doublePayCount || 10));
+        const moveTimeout = Math.min(300, Math.max(0, msg.moveTimeout || 0));
+        const zoomLink = typeof msg.zoomLink === "string" ? msg.zoomLink.trim() : "";
         const room = createRoom(
           user.name, user.email, ws,
           maxP,
           stars,
           steps,
           dpCount,
-          msg.fogOfWar || false
+          msg.fogOfWar || false,
+          moveTimeout,
+          zoomLink
         );
         wsRoomMap.set(ws, room.code);
         send(ws, {
@@ -340,6 +472,7 @@ wss.on("connection", (ws: WebSocket) => {
           playerId: 0,
           players: room.players.map((p) => p.name),
           maxPlayers: room.maxPlayers,
+          ...(room.zoomLink ? { zoomLink: room.zoomLink } : {}),
         });
         persistAll();
         break;
@@ -359,11 +492,50 @@ wss.on("connection", (ws: WebSocket) => {
 
         const playerNames = room.players.map((p) => p.name);
 
+        // Build rejoin state if reconnecting to a started game
+        const existingSession = getSession(room.code);
+        let rejoinState: Record<string, unknown> | undefined;
+        if (existingSession && room.started) {
+          rejoinState = {};
+          if (existingSession.endGameVotingActive) {
+            const votes: Record<number, boolean | null> = {};
+            for (const [id, v] of existingSession.endGameVotes) {
+              votes[id] = v;
+            }
+            rejoinState.endGameVotes = votes;
+            rejoinState.endGameInitiator = existingSession.endGameInitiator;
+          }
+          if (existingSession.stepsVotingActive) {
+            const votes: Record<number, boolean | null> = {};
+            for (const [id, v] of existingSession.stepsVotes) {
+              votes[id] = v;
+            }
+            rejoinState.stepsVote = { newSteps: existingSession.stepsNewValue, initiator: existingSession.stepsInitiator ?? "", votes };
+          }
+          if (existingSession.pauseVotingActive) {
+            const votes: Record<number, boolean | null> = {};
+            for (const [id, v] of existingSession.pauseVotes) {
+              votes[id] = v;
+            }
+            rejoinState.pauseVotes = votes;
+            rejoinState.pauseInitiator = existingSession.pauseInitiator;
+          }
+          if (existingSession.state.phase === "mapSelect") {
+            const votes: Record<number, boolean | null> = {};
+            for (const [id, v] of existingSession.mapVotes) {
+              votes[id] = v;
+            }
+            rejoinState.mapVotes = votes;
+          }
+        }
+
         send(ws, {
           type: "ROOM_JOINED",
           roomCode: room.code,
           playerId,
           players: playerNames,
+          ...(room.zoomLink ? { zoomLink: room.zoomLink } : {}),
+          ...(rejoinState ? { rejoinState } : {}),
         });
 
         broadcast(room, {
@@ -372,16 +544,20 @@ wss.on("connection", (ws: WebSocket) => {
           players: playerNames,
         });
 
-        // If reconnecting to a started game, send state + active votes
-        const existingSession = getSession(room.code);
+        // If reconnecting to a started game, broadcast current state + timer
         if (existingSession && room.started) {
           existingSession.broadcastState();
-          if (existingSession.endGameVotingActive) {
-            const votes: Record<number, boolean | null> = {};
-            for (const [id, v] of existingSession.endGameVotes) {
-              votes[id] = v;
-            }
-            send(ws, { type: "END_GAME_VOTES", votes, initiator: existingSession.endGameInitiator });
+          // Send retired player list
+          broadcast(room, { type: "RETIRED_PLAYERS", playerIds: room.players.filter((p) => p.retired).map((p) => p.playerId) });
+
+          // If it's this player's turn and they just un-retired, start their timer
+          if (existingSession.state.phase === "move" && existingSession.state.currentPlayer === playerId) {
+            existingSession.startMoveTimerIfNeeded();
+          }
+
+          const deadline = existingSession.getMoveDeadline();
+          if (deadline > Date.now()) {
+            send(ws, { type: "MOVE_TIMER", deadline, playerId: existingSession.state.currentPlayer });
           }
         }
 
@@ -389,6 +565,7 @@ wss.on("connection", (ws: WebSocket) => {
         if (!room.started && room.players.length >= room.maxPlayers) {
           room.started = true;
           const session = getOrCreateSession(room);
+          setupAutoMoveCallback(session);
           session.start(room.starCount, room.totalSteps, room.doublePayCount);
         }
 
@@ -421,6 +598,7 @@ wss.on("connection", (ws: WebSocket) => {
 
         room.started = true;
         const session = getOrCreateSession(room);
+        setupAutoMoveCallback(session);
         session.start(room.starCount, room.totalSteps, room.doublePayCount);
         persistAll();
         break;
@@ -442,6 +620,7 @@ wss.on("connection", (ws: WebSocket) => {
         room.maxPlayers = room.players.length;
         room.started = true;
         const session = getOrCreateSession(room);
+        setupAutoMoveCallback(session);
         session.start(room.starCount, room.totalSteps, room.doublePayCount);
         persistAll();
         break;
@@ -490,16 +669,27 @@ wss.on("connection", (ws: WebSocket) => {
             const playerEmails = room.players.map((p) => p.email);
             const winnerEmail = room.players[session.state.winner]?.email;
             if (winnerEmail) {
-              recordGameResult(playerEmails, winnerEmail);
-              for (const client of wss.clients) {
-                send(client as WebSocket, { type: "LEADERBOARD", entries: getLeaderboard() });
-              }
+              recordAndBroadcastResult(playerEmails, winnerEmail, session.state);
             }
-            const log = session.getGameLog();
+            deleteGameLog("inprogress-" + roomCode);
+            const log = session.getGameLog(true);
             if (log) saveGameLog(log);
           }
         }
         persistAll();
+        break;
+      }
+
+      case "PAUSE_VOTE": {
+        const roomCode = wsRoomMap.get(ws);
+        if (!roomCode) return;
+        const room = getRoom(roomCode);
+        if (!room) return;
+        const voter = room.players.find((p) => p.ws === ws);
+        if (!voter) return;
+        const session = getSession(roomCode);
+        if (!session) return;
+        session.handlePauseVote(voter.playerId, msg.accept);
         break;
       }
 
@@ -518,16 +708,19 @@ wss.on("connection", (ws: WebSocket) => {
         if (session.handleAction(player.playerId, msg.action)) {
           persistAll();
 
-          // Record leaderboard + save game log on game end
           if (session.state.phase === "gameOver" && session.state.winner !== null) {
+            // Record leaderboard + save final game log on game end
             const playerEmails = room.players.map((p) => p.email);
             const winnerEmail = room.players[session.state.winner]?.email;
             if (winnerEmail) {
-              recordGameResult(playerEmails, winnerEmail);
-              for (const client of wss.clients) {
-                send(client as WebSocket, { type: "LEADERBOARD", entries: getLeaderboard() });
-              }
+              recordAndBroadcastResult(playerEmails, winnerEmail, session.state);
             }
+            // Delete in-progress log and save final version
+            deleteGameLog("inprogress-" + roomCode);
+            const log = session.getGameLog(true);
+            if (log) saveGameLog(log);
+          } else {
+            // Save in-progress game log on every turn
             const log = session.getGameLog();
             if (log) saveGameLog(log);
           }
@@ -572,8 +765,10 @@ wss.on("connection", (ws: WebSocket) => {
         }
         const room = getRoom(msg.roomCode);
         if (room) {
-          // Notify connected players
-          broadcast(room, { type: "ERROR", message: "Game deleted by admin" });
+          const session = getSession(msg.roomCode);
+          if (session) session.clearMoveTimer();
+          // Notify connected players to exit
+          broadcast(room, { type: "ERROR", message: "GAME_DELETED" });
         }
         deleteRoom(msg.roomCode);
         deleteSession(msg.roomCode);
@@ -595,6 +790,53 @@ wss.on("connection", (ws: WebSocket) => {
         break;
       }
 
+      case "ADMIN_END_GAME": {
+        if (user.email.toLowerCase() !== ADMIN_EMAIL) {
+          send(ws, { type: "ERROR", message: "Not authorized" });
+          return;
+        }
+        const room = getRoom(msg.roomCode);
+        const session = getSession(msg.roomCode);
+        if (!room || !session) {
+          send(ws, { type: "ERROR", message: "Room or session not found" });
+          return;
+        }
+        if (session.state.phase === "gameOver") {
+          send(ws, { type: "ERROR", message: "Game already ended" });
+          return;
+        }
+        // Force end the game
+        session.state = gameReducer(session.state, { type: "END_GAME_EARLY" });
+        session.broadcastState();
+        // Record winner on leaderboard + save final game log
+        if (session.state.winner !== null) {
+          const playerEmails = room.players.map((p) => p.email);
+          const winnerEmail = room.players[session.state.winner]?.email;
+          if (winnerEmail) {
+            recordAndBroadcastResult(playerEmails, winnerEmail, session.state);
+          }
+        }
+        deleteGameLog("inprogress-" + msg.roomCode);
+        const adminLog = session.getGameLog(true);
+        if (adminLog) saveGameLog(adminLog);
+        persistAll();
+        // Send updated room list
+        const endedRooms = listRooms();
+        for (const info of endedRooms) {
+          const s = getSession(info.code);
+          if (s) {
+            const extra = s.getRoomInfo();
+            info.currentStep = extra.currentStep ?? 0;
+            info.totalSteps = extra.totalSteps ?? 0;
+            info.phase = extra.phase ?? "lobby";
+          }
+        }
+        for (const client of wss.clients) {
+          send(client as WebSocket, { type: "ROOM_LIST", rooms: endedRooms });
+        }
+        break;
+      }
+
       case "ADMIN_DELETE_GAME_LOG": {
         if (user.email.toLowerCase() !== ADMIN_EMAIL) {
           send(ws, { type: "ERROR", message: "Not authorized" });
@@ -606,6 +848,49 @@ wss.on("connection", (ws: WebSocket) => {
         }
         break;
       }
+
+      case "RETIRE": {
+        const roomCode = wsRoomMap.get(ws);
+        if (!roomCode) return;
+        const room = getRoom(roomCode);
+        if (!room) return;
+        const player = room.players.find((p) => p.ws === ws);
+        if (!player) return;
+
+        player.retired = true;
+        console.log(`Player ${player.name} retired from room ${roomCode}`);
+
+        // Broadcast retired list and player left
+        broadcast(room, { type: "RETIRED_PLAYERS", playerIds: room.players.filter((p) => p.retired).map((p) => p.playerId) });
+        broadcast(room, {
+          type: "PLAYER_LEFT",
+          playerName: player.name,
+          players: room.players.map((p) => p.name),
+        });
+
+        const session = getSession(roomCode);
+        if (session) {
+          // Auto-accept any pending votes
+          const gameEnded = session.autoVoteForRetired();
+          if (gameEnded && session.state.winner !== null) {
+            const playerEmails = room.players.map((p) => p.email);
+            const winnerEmail = room.players[session.state.winner]?.email;
+            if (winnerEmail) recordAndBroadcastResult(playerEmails, winnerEmail, session.state);
+            deleteGameLog("inprogress-" + roomCode);
+            const log = session.getGameLog(true);
+            if (log) saveGameLog(log);
+          }
+
+          // Auto-play if it's the retired player's turn
+          if (session.state.phase === "move" && session.state.currentPlayer === player.playerId) {
+            session.autoPlayIfRetired();
+          }
+        }
+
+        persistAll();
+        break;
+      }
+
     }
   });
 

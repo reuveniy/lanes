@@ -202,6 +202,12 @@ function makePlayers(count: number): Player[] {
     color: PLAYER_COLORS[i],
     netWorth: 6000 + Math.floor(Math.random() * 30000),
     doublePays: Math.floor(Math.random() * 3),
+    bonusCount: 0,
+    totalBonusReceived: 0,
+    freezeCount: 0,
+    trapCount: 0,
+    halfTrapCount: 0, totalTrapLost: 0,
+    specialHelpCount: 0,
   }));
 }
 
