@@ -832,7 +832,9 @@ wss.on("connection", (ws: WebSocket) => {
           return;
         }
         // Force end the game
-        session.state = gameReducer(session.state, { type: "END_GAME_EARLY" });
+        const endAction = { type: "END_GAME_EARLY" as const };
+        session.state = gameReducer(session.state, endAction);
+        session.logAction(endAction);
         session.broadcastState();
         // Record winner on leaderboard + save final game log
         if (session.state.winner !== null) {

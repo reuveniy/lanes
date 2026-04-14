@@ -88,6 +88,8 @@ export interface GameConfig {
   seed: number;
   scoreRecorded: boolean;
   moveTimeout?: number; // seconds, 0 = no timeout
+  fixedTurnOrder?: number[]; // if set, use this turn order instead of random
+  fixedFirstPlayer?: number; // if set, use this as first player
 }
 
 export type GamePhase =

@@ -39,14 +39,15 @@ export function createInitialState(config: GameConfig): GameState {
     createCompany(i, config.playerCount)
   );
 
-  // Random first player
-  const firstPlayer = rng.nextInt(0, config.playerCount - 1);
-
-  // Generate turn order starting from first player
-  const turnOrder: number[] = [];
-  for (let i = 0; i < config.playerCount; i++) {
-    turnOrder.push((firstPlayer + i) % config.playerCount);
-  }
+  // First player and turn order — use fixed values if provided (map regeneration), otherwise random
+  const firstPlayer = config.fixedFirstPlayer ?? rng.nextInt(0, config.playerCount - 1);
+  const turnOrder: number[] = config.fixedTurnOrder ?? (() => {
+    const order: number[] = [];
+    for (let i = 0; i < config.playerCount; i++) {
+      order.push((firstPlayer + i) % config.playerCount);
+    }
+    return order;
+  })();
 
   return {
     grid,

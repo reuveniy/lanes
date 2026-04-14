@@ -80,7 +80,9 @@ export class GameSession {
           this.endGameVotingActive = false;
           this.endGameInitiator = null;
           this.endGameVotes.clear();
-          this.state = gameReducer(this.state, { type: "END_GAME_EARLY" });
+          const endAction: GameAction = { type: "END_GAME_EARLY" };
+          this.state = gameReducer(this.state, endAction);
+          this.logAction(endAction);
           this.broadcastState();
           this.broadcastEndGameVotes();
           return true; // game ended
@@ -203,10 +205,15 @@ export class GameSession {
   private regenerateMap(): void {
     if (!this.state.config) return;
     // Preserve turn order and starting player across map regenerations
-    const { turnOrder, currentPlayer } = this.state;
-    const newConfig = { ...this.state.config, seed: Date.now() };
-    this.state = gameReducer(this.state, { type: "INIT_GAME", config: newConfig });
-    this.state = { ...this.state, turnOrder, currentPlayer };
+    const newConfig = {
+      ...this.state.config,
+      seed: Date.now(),
+      fixedTurnOrder: this.state.turnOrder,
+      fixedFirstPlayer: this.state.currentPlayer,
+    };
+    const regenAction: GameAction = { type: "INIT_GAME", config: newConfig };
+    this.state = gameReducer(this.state, regenAction);
+    this.logAction(regenAction);
     // Stay in mapSelect
     this.resetMapVotes();
     this.broadcastState();
@@ -262,7 +269,9 @@ export class GameSession {
       this.endGameVotingActive = false;
       this.endGameInitiator = null;
       this.endGameVotes.clear();
-      this.state = gameReducer(this.state, { type: "END_GAME_EARLY" });
+      const endAction: GameAction = { type: "END_GAME_EARLY" };
+      this.state = gameReducer(this.state, endAction);
+      this.logAction(endAction);
       this.broadcastState();
       this.broadcastEndGameVotes();
       return true;
@@ -427,7 +436,8 @@ export class GameSession {
     return true;
   }
 
-  private logAction(action: GameAction): void {
+  /** Log an action to the game log (public for external callers like admin end game) */
+  logAction(action: GameAction): void {
     this.actionLog.push({
       step: this.state.currentStep,
       action: JSON.stringify(action),
